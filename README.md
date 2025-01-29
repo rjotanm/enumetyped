@@ -1,4 +1,4 @@
-# Typenum
+# Enumetyped
 
 This package provide a way to create typed enumerations.
 
