@@ -4,17 +4,17 @@ This package provide a way to create typed enumerations.
 
 # Install
 
-- `pip install typenum`
-- `pip install typenum[pydantic]` - install with pydantic `>=2.9`
+- `pip install enumetyped`
+- `pip install enumetyped[pydantic]` - install with pydantic `>=2.9`
 
 # Quickstart
 
 #### Without pydantic
 ```python
-from typenum import TypEnum, TypEnumContent
+from enumetyped import TypEnum, TypEnumContent
 
 class SimpleEnum(TypEnum[TypEnumContent]):
-    A: type["SimpleEnum[NoValue"]
+    A: type["SimpleEnum[NoValue]"]
     Int: type["SimpleEnum[int]"]
 
 # isinstance checking
@@ -44,8 +44,8 @@ from dataclasses import dataclass
 
 from pydantic import BaseModel
 
-from typenum import TypEnum, TypEnumContent, NoValue
-from typenum.pydantic import TypEnumPydantic, FieldMetadata, Rename
+from enumetyped import TypEnum, TypEnumContent, NoValue
+from enumetyped.pydantic import TypEnumPydantic, FieldMetadata, Rename
 from typing_extensions import Annotated, TypedDict
 
 
@@ -114,7 +114,7 @@ class MyEnum(TypEnumPydantic[TypEnumContent]):  # <- externally, default
 
     # MyEnum.StrTuple(("1", "2")))
     StringTuple: Annotated[type["MyEnum[tuple[str, str]]"], FieldMetadata(rename="just_str_tuple")]
-    # or use typenum.pydantic.Rename
+    # or use enumetyped.pydantic.Rename
     # StrTuple: Annotated[type["MyEnum[tuple[str, str]]"], Rename("some_other_name")]
 
 

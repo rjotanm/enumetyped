@@ -1,6 +1,6 @@
 [tool.poetry]
 package-mode = true
-name = "typenum"
+name = "enumetyped"
 version = "0.3.2"
 
 authors = [
@@ -8,7 +8,7 @@ authors = [
 ]
 
 description = "Type-containing enumeration"
-repository = "https://github.com/rjotanm/typenum"
+repository = "https://github.com/rjotanm/enumetyped"
 license = "MIT"
 readme = "README.md"
 
@@ -29,7 +29,7 @@ classifiers = [
 ]
 
 packages = [
-    { include = "typenum" },
+    { include = "enumetyped" },
 ]
 
 [tool.poetry.dependencies]

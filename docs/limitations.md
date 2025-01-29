@@ -23,7 +23,7 @@ but python haven\`t this feature (mypy has experimental flag to support that), w
 
 ```python
 from typing_extensions import TypedDict
-from typenum import TypEnum, TypEnumContent
+from enumetyped import TypEnum, TypEnumContent
 
 class ObjDict(TypedDict):
     a: int
@@ -44,7 +44,7 @@ enum MyEnum {
 
 In Python same, with special annotation
 ```python
-from typenum import TypEnum, TypEnumContent, NoValue
+from enumetyped import TypEnum, TypEnumContent, NoValue
 
 class MyEnum(TypEnum[TypEnumContent]):
     Empty: type['MyEnum[NoValue]']
@@ -72,7 +72,7 @@ enum MyEnum {
 
 ```python
 from typing_extensions import TypedDict
-from typenum import TypEnum, TypEnumContent
+from enumetyped import TypEnum, TypEnumContent
 
 class EmptyObj(TypedDict):
     pass
@@ -101,7 +101,7 @@ enum MyEnum {
 
 ```python
 from typing import Any
-from typenum import TypEnum, TypEnumContent
+from enumetyped import TypEnum, TypEnumContent
 
 class MyEnum(TypEnum[TypEnumContent]):
     Int: type['MyEnum[int]']
@@ -133,7 +133,7 @@ enum MyEnum {
 
 ```python
 from typing_extensions import TypedDict
-from typenum import TypEnum, TypEnumContent
+from enumetyped import TypEnum, TypEnumContent
 
 class EnumContaining(TypedDict):
     c: 'MyEnum'
@@ -146,7 +146,7 @@ class MyEnum(TypEnum[TypEnumContent]):
 #### 4. Internally representation should use for objects only
 
 ```python
-from typenum import TypEnum, TypEnumContent
+from enumetyped import TypEnum, TypEnumContent
 
 class MyEnum(TypEnum[TypEnumContent], key="key"):
     Int: type['MyEnum[int]']  # bad, error on runtime, but pass type check
@@ -154,7 +154,7 @@ class MyEnum(TypEnum[TypEnumContent], key="key"):
 
 ```python
 from typing_extensions import TypedDict
-from typenum import TypEnum, TypEnumContent
+from enumetyped import TypEnum, TypEnumContent
 
 class IntDict(TypedDict):
     val: int

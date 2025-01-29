@@ -4,8 +4,8 @@ import pydantic as pydantic_
 from pydantic_core import CoreSchema, core_schema, SchemaValidator
 from pydantic_core.core_schema import SerializerFunctionWrapHandler, ValidationInfo
 
-from typenum.core import NoValue, TypEnumContent
-from typenum.pydantic.serialization.tagged import TaggedSerialization
+from enumetyped.core import NoValue, TypEnumContent
+from enumetyped.pydantic.serialization.tagged import TaggedSerialization
 
 if typing.TYPE_CHECKING:
     from ..core import TypEnumPydantic  # type: ignore
@@ -28,7 +28,7 @@ class InternallyTagged(TaggedSerialization):
             source_type: typing.Any,
             handler: pydantic_.GetCoreSchemaHandler,
     ) -> CoreSchema:
-        from typenum.pydantic.core import TypEnumPydantic
+        from enumetyped.pydantic.core import TypEnumPydantic
 
         json_schemas: dict[str, core_schema.CoreSchema] = {}
         real_schema_attrs = {}

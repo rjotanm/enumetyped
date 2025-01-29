@@ -5,8 +5,8 @@ import pydantic as pydantic_
 from pydantic_core import CoreSchema, core_schema
 from pydantic_core.core_schema import SerializerFunctionWrapHandler, ValidationInfo
 
-from typenum.core import TypEnumContent, NoValue
-from typenum.pydantic.serialization.tagged import TaggedSerialization
+from enumetyped.core import TypEnumContent, NoValue
+from enumetyped.pydantic.serialization.tagged import TaggedSerialization
 
 if typing.TYPE_CHECKING:
     from ..core import TypEnumPydantic  # type: ignore
@@ -31,14 +31,14 @@ class AdjacentlyTagged(TaggedSerialization):
             _source_type: typing.Any,
             handler: pydantic_.GetCoreSchemaHandler,
     ) -> CoreSchema:
-        from typenum.pydantic.core import TypEnumPydantic
+        from enumetyped.pydantic.core import TypEnumPydantic
 
         json_schemas: list[core_schema.CoreSchema] = []
         for attr in kls.__variants__.values():
             enum_variant: type[TypEnumPydantic[TypEnumContent]] = getattr(kls, attr)
             attr = kls.__names_serialization__.get(attr, attr)
             variant_schema = core_schema.typed_dict_field(core_schema.str_schema(pattern=attr))
-            is_typenum_variant = (
+            is_enumetyped_variant = (
                     inspect.isclass(enum_variant.__content_type__) and
                     issubclass(enum_variant.__content_type__, TypEnumPydantic)
             )
@@ -47,8 +47,8 @@ class AdjacentlyTagged(TaggedSerialization):
                 self.__variant_tag__: variant_schema,
             }
 
-            if is_typenum_variant or enum_variant.__content_type__ is NoValue:
-                if is_typenum_variant:
+            if is_enumetyped_variant or enum_variant.__content_type__ is NoValue:
+                if is_enumetyped_variant:
                     kls_: type = enum_variant.__content_type__  # type: ignore
                     schema_definition = core_schema.definition_reference_schema(f"{kls_.__name__}:{id(kls_)}")
                     value_schema = core_schema.typed_dict_field(core_schema.definitions_schema(
@@ -86,7 +86,7 @@ class AdjacentlyTagged(TaggedSerialization):
             input_value: typing.Any,
             info: ValidationInfo,
     ) -> typing.Any:
-        from typenum.pydantic.core import TypEnumPydantic
+        from enumetyped.pydantic.core import TypEnumPydantic
 
         if isinstance(input_value, TypEnumPydantic):
             return input_value

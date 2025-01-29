@@ -10,7 +10,7 @@ from annotated_types import GroupedMetadata, BaseMetadata
 from pydantic_core import core_schema
 from pydantic_core.core_schema import ValidationInfo, SerializerFunctionWrapHandler
 
-from typenum.core import TypEnumMeta, _TypEnum, TypEnumContent
+from enumetyped.core import TypEnumMeta, _TypEnum, TypEnumContent
 
 __all__ = [
     "Rename",
@@ -20,8 +20,8 @@ __all__ = [
     "eval_content_type",
 ]
 
-from typenum.pydantic.serialization import AdjacentlyTagged, InternallyTagged, ExternallyTagged
-from typenum.pydantic.serialization.tagged import TaggedSerialization
+from enumetyped.pydantic.serialization import AdjacentlyTagged, InternallyTagged, ExternallyTagged
+from enumetyped.pydantic.serialization.tagged import TaggedSerialization
 
 
 @dataclass(frozen=True, slots=True)

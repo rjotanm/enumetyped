@@ -5,8 +5,8 @@ import pydantic as pydantic_
 from pydantic_core import CoreSchema, core_schema
 from pydantic_core.core_schema import SerializerFunctionWrapHandler, ValidationInfo
 
-from typenum.core import TypEnumContent, NoValue
-from typenum.pydantic.serialization.tagged import TaggedSerialization
+from enumetyped.core import TypEnumContent, NoValue
+from enumetyped.pydantic.serialization.tagged import TaggedSerialization
 
 if typing.TYPE_CHECKING:
     from ..core import TypEnumPydantic  # type: ignore
@@ -23,7 +23,7 @@ class ExternallyTagged(TaggedSerialization):
             _source_type: typing.Any,
             handler: pydantic_.GetCoreSchemaHandler,
     ) -> CoreSchema:
-        from typenum.pydantic.core import TypEnumPydantic
+        from enumetyped.pydantic.core import TypEnumPydantic
 
         json_schema_attrs = {}
         other_schemas = []
@@ -31,13 +31,13 @@ class ExternallyTagged(TaggedSerialization):
             enum_variant: type[TypEnumPydantic[TypEnumContent]] = getattr(kls, attr)
             attr = kls.__names_serialization__.get(attr, attr)
 
-            is_typenum_variant = (
+            is_enumetyped_variant = (
                     inspect.isclass(enum_variant.__content_type__) and
                     issubclass(enum_variant.__content_type__, TypEnumPydantic)
             )
 
             item_schema: core_schema.CoreSchema
-            if is_typenum_variant or enum_variant.__content_type__ is NoValue:
+            if is_enumetyped_variant or enum_variant.__content_type__ is NoValue:
                 if enum_variant.__content_type__ is NoValue:
                     other_schemas.append(core_schema.str_schema(pattern=attr))
                     continue
@@ -79,7 +79,7 @@ class ExternallyTagged(TaggedSerialization):
             input_value: typing.Any,
             info: ValidationInfo,
     ) -> typing.Any:
-        from typenum.pydantic.core import TypEnumPydantic
+        from enumetyped.pydantic.core import TypEnumPydantic
 
         if isinstance(input_value, TypEnumPydantic):
             return input_value
