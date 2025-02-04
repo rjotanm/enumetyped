@@ -6,6 +6,7 @@ import pydantic as pydantic_
 import typing_extensions
 from annotated_types import GroupedMetadata, BaseMetadata
 from pydantic import TypeAdapter
+from pydantic.json_schema import DEFAULT_REF_TEMPLATE, GenerateJsonSchema, JsonSchemaMode
 from pydantic.main import IncEx
 from pydantic_core import core_schema
 from pydantic_core.core_schema import ValidationInfo, SerializerFunctionWrapHandler
@@ -168,7 +169,7 @@ class TypEnumPydantic(_TypEnum[TypEnumContent], metaclass=TypEnumPydanticMeta):
     def model_dump(
         self,
         *,
-        mode: typing.Literal['json', 'python'] | str = 'python',
+        mode: typing.Literal['json', 'python'] = 'python',
         include: IncEx | None = None,
         exclude: IncEx | None = None,
         context: typing.Any | None = None,
@@ -182,7 +183,7 @@ class TypEnumPydantic(_TypEnum[TypEnumContent], metaclass=TypEnumPydanticMeta):
     ) -> dict[str, typing.Any]:
         return self.adapter().dump_python(  # type: ignore
             self,
-            mode=mode,  # type: ignore
+            mode=mode,
             by_alias=by_alias,
             include=include,
             exclude=exclude,
@@ -226,6 +227,35 @@ class TypEnumPydantic(_TypEnum[TypEnumContent], metaclass=TypEnumPydanticMeta):
         ).decode()
 
     @classmethod
+    def json_schema(
+        cls,
+        *,
+        by_alias: bool = True,
+        ref_template: str = DEFAULT_REF_TEMPLATE,
+        schema_generator: type[GenerateJsonSchema] = GenerateJsonSchema,
+        mode: JsonSchemaMode = 'validation',
+    ) -> dict[str, typing.Any]:
+        return cls.adapter().json_schema(
+            by_alias=by_alias,
+            ref_template=ref_template,
+            schema_generator=schema_generator,
+            mode=mode,
+        )
+
+    @classmethod
+    def model_validate(
+        cls,
+        obj: typing.Any,
+        *,
+        strict: bool | None = None,
+        from_attributes: bool | None = None,
+        context: typing.Any | None = None,
+    ) -> typing_extensions.Self:
+        # `__tracebackhide__` tells pytest and some other tools to omit this function from tracebacks
+        __tracebackhide__ = True
+        return cls.adapter().validate_python(obj, strict=strict, from_attributes=from_attributes, context=context)
+
+    @classmethod
     def model_validate_json(
         cls,
         json_data: str | bytes | bytearray,
@@ -233,6 +263,7 @@ class TypEnumPydantic(_TypEnum[TypEnumContent], metaclass=TypEnumPydanticMeta):
         strict: bool | None = None,
         context: typing.Any | None = None,
     ) -> typing_extensions.Self:
+        # `__tracebackhide__` tells pytest and some other tools to omit this function from tracebacks
         __tracebackhide__ = True
         return cls.adapter().validate_json(json_data, strict=strict, context=context)
 
@@ -244,6 +275,7 @@ class TypEnumPydantic(_TypEnum[TypEnumContent], metaclass=TypEnumPydanticMeta):
         strict: bool | None = None,
         context: typing.Any | None = None,
     ) -> typing_extensions.Self:
+        # `__tracebackhide__` tells pytest and some other tools to omit this function from tracebacks
         __tracebackhide__ = True
         return cls.adapter().validate_strings(obj, strict=strict, context=context)
 
