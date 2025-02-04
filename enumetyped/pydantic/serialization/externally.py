@@ -97,13 +97,15 @@ class ExternallyTagged(TaggedSerialization):
             model: typing.Any,
             serializer: SerializerFunctionWrapHandler,
     ) -> typing.Any:
+        from enumetyped.pydantic.core import TypEnumPydantic
+
         attr = model.__variant_name__
-        attr = kls.__names_serialization__.get(attr, attr)
+        attr = model.__names_serialization__.get(attr, attr)
 
         if model.__content_type__ is NoValue:
             return attr
-        elif isinstance(model.value, kls):
-            content = kls.__pydantic_serialization__(model.value, serializer)
+        elif isinstance(model.value, TypEnumPydantic):
+            content = model.__pydantic_serialization__(model.value, serializer)
         else:
             content = serializer(model.value)
 

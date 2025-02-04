@@ -108,8 +108,8 @@ class AdjacentlyTagged(TaggedSerialization):
         result = {self.__variant_tag__: attr}
         if model.__content_type__ is NoValue:
             pass
-        elif isinstance(model.value, kls):
-            result[self.__content_tag__] = kls.__pydantic_serialization__(model.value, serializer)
+        elif isinstance(model.value, TypEnumPydantic):
+            result[self.__content_tag__] = model.__pydantic_serialization__(model.value, serializer)
         else:
             result[self.__content_tag__] = serializer(model.value)
 

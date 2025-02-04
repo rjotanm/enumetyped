@@ -132,8 +132,8 @@ class InternallyTagged(TaggedSerialization):
         result = {self.__variant_tag__: attr}
         if model.__content_type__ is NoValue:
             pass
-        elif isinstance(model.value, kls):
-            result.update(**kls.__pydantic_serialization__(model.value, serializer))
+        elif isinstance(model.value, TypEnumPydantic):
+            result.update(**model.__pydantic_serialization__(model.value, serializer))
         else:
             result.update(**serializer(model.value))
 
