@@ -1,12 +1,12 @@
 import importlib
 import inspect
 import typing
-import pydantic as pydantic_
-
 from dataclasses import dataclass
-
+import pydantic as pydantic_
 import typing_extensions
 from annotated_types import GroupedMetadata, BaseMetadata
+from pydantic import TypeAdapter
+from pydantic.main import IncEx
 from pydantic_core import core_schema
 from pydantic_core.core_schema import ValidationInfo, SerializerFunctionWrapHandler
 
@@ -115,6 +115,8 @@ class TypEnumPydantic(_TypEnum[TypEnumContent], metaclass=TypEnumPydanticMeta):
 
     __serialization__: typing.ClassVar[TaggedSerialization]
 
+    _type_adapter: typing.Optional[TypeAdapter[typing_extensions.Self]] = None
+
     @classmethod
     def content_type(cls) -> type:
         # Resolve types when __content_type__ declare after cls declaration
@@ -156,3 +158,92 @@ class TypEnumPydantic(_TypEnum[TypEnumContent], metaclass=TypEnumPydanticMeta):
             serializer: SerializerFunctionWrapHandler,
     ) -> typing.Any:
         return cls.__serialization__.__pydantic_serialization__(cls, model, serializer)
+
+    @classmethod
+    def adapter(cls) -> TypeAdapter[typing_extensions.Self]:
+        if cls._type_adapter is None:
+            cls._type_adapter = TypeAdapter(cls)
+        return cls._type_adapter
+
+    def model_dump(
+        self,
+        *,
+        mode: typing.Literal['json', 'python'] | str = 'python',
+        include: IncEx | None = None,
+        exclude: IncEx | None = None,
+        context: typing.Any | None = None,
+        by_alias: bool = False,
+        exclude_unset: bool = False,
+        exclude_defaults: bool = False,
+        exclude_none: bool = False,
+        round_trip: bool = False,
+        warnings: bool | typing.Literal['none', 'warn', 'error'] = True,
+        serialize_as_any: bool = False,
+    ) -> dict[str, typing.Any]:
+        return self.adapter().dump_python(  # type: ignore
+            self,
+            mode=mode,  # type: ignore
+            by_alias=by_alias,
+            include=include,
+            exclude=exclude,
+            context=context,
+            exclude_unset=exclude_unset,
+            exclude_defaults=exclude_defaults,
+            exclude_none=exclude_none,
+            round_trip=round_trip,
+            warnings=warnings,
+            serialize_as_any=serialize_as_any,
+        )
+
+    def model_dump_json(
+        self,
+        *,
+        indent: int | None = None,
+        include: IncEx | None = None,
+        exclude: IncEx | None = None,
+        context: typing.Any | None = None,
+        by_alias: bool = False,
+        exclude_unset: bool = False,
+        exclude_defaults: bool = False,
+        exclude_none: bool = False,
+        round_trip: bool = False,
+        warnings: bool | typing.Literal['none', 'warn', 'error'] = True,
+        serialize_as_any: bool = False,
+    ) -> str:
+        return self.adapter().dump_json(
+            self,
+            indent=indent,
+            include=include,
+            exclude=exclude,
+            context=context,
+            by_alias=by_alias,
+            exclude_unset=exclude_unset,
+            exclude_defaults=exclude_defaults,
+            exclude_none=exclude_none,
+            round_trip=round_trip,
+            warnings=warnings,
+            serialize_as_any=serialize_as_any,
+        ).decode()
+
+    @classmethod
+    def model_validate_json(
+        cls,
+        json_data: str | bytes | bytearray,
+        *,
+        strict: bool | None = None,
+        context: typing.Any | None = None,
+    ) -> typing_extensions.Self:
+        __tracebackhide__ = True
+        return cls.adapter().validate_json(json_data, strict=strict, context=context)
+
+    @classmethod
+    def model_validate_strings(
+        cls,
+        obj: typing.Any,
+        *,
+        strict: bool | None = None,
+        context: typing.Any | None = None,
+    ) -> typing_extensions.Self:
+        __tracebackhide__ = True
+        return cls.adapter().validate_strings(obj, strict=strict, context=context)
+
