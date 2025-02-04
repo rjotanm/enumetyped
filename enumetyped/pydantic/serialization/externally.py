@@ -105,7 +105,7 @@ class ExternallyTagged(TaggedSerialization):
         if model.__content_type__ is NoValue:
             return attr
         elif isinstance(model.value, TypEnumPydantic):
-            content = model.__pydantic_serialization__(model.value, serializer)
+            content = model.value.__pydantic_serialization__(model.value, serializer)
         else:
             content = serializer(model.value)
 

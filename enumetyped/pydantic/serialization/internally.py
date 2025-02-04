@@ -126,6 +126,8 @@ class InternallyTagged(TaggedSerialization):
             model: typing.Any,
             serializer: SerializerFunctionWrapHandler,
     ) -> typing.Any:
+        from enumetyped.pydantic.core import TypEnumPydantic
+
         attr = model.__variant_name__
         attr = kls.__names_serialization__.get(attr, attr)
 
@@ -133,7 +135,7 @@ class InternallyTagged(TaggedSerialization):
         if model.__content_type__ is NoValue:
             pass
         elif isinstance(model.value, TypEnumPydantic):
-            result.update(**model.__pydantic_serialization__(model.value, serializer))
+            result.update(**model.value.__pydantic_serialization__(model.value, serializer))
         else:
             result.update(**serializer(model.value))
 
