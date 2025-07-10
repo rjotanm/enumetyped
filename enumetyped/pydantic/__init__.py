@@ -6,7 +6,7 @@ if tuple(map(int, pydantic.version.VERSION.split('.'))) < (2, 9, 0):
 
 from .core import (
     Rename,
-    TypEnumPydantic,
+    EnumetypedPydantic,
     FieldMetadata,
 )
 
@@ -14,5 +14,5 @@ from .core import (
 __all__ = [
     "FieldMetadata",
     "Rename",
-    "TypEnumPydantic",
+    "EnumetypedPydantic",
 ]

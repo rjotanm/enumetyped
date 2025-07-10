@@ -4,11 +4,12 @@ import pydantic as pydantic_
 from pydantic_core import CoreSchema, core_schema, SchemaValidator
 from pydantic_core.core_schema import SerializerFunctionWrapHandler, ValidationInfo
 
-from enumetyped.core import NoValue, TypEnumContent
+from enumetyped.core import NoValue, Content
 from enumetyped.pydantic.serialization.tagged import TaggedSerialization
 
 if typing.TYPE_CHECKING:
-    from ..core import TypEnumPydantic  # type: ignore
+    from enumetyped.core import Content
+    from enumetyped.pydantic.core import EnumetypedPydantic
 
 __all__ = [
     "InternallyTagged",
@@ -24,18 +25,18 @@ class InternallyTagged(TaggedSerialization):
 
     def __get_pydantic_core_schema__(
             self,
-            kls: type["TypEnumPydantic[TypEnumContent]"],
+            kls: type["EnumetypedPydantic[Content]"],
             source_type: typing.Any,
             handler: pydantic_.GetCoreSchemaHandler,
     ) -> CoreSchema:
-        from enumetyped.pydantic.core import TypEnumPydantic
+        from enumetyped.pydantic.core import EnumetypedPydantic
 
         json_schemas: dict[str, core_schema.CoreSchema] = {}
         real_schema_attrs = {}
         real_schemas: list[core_schema.CoreSchema] = []
 
         for attr in kls.__variants__.values():
-            enum_variant: type[TypEnumPydantic[TypEnumContent]] = getattr(kls, attr)
+            enum_variant: type[EnumetypedPydantic[Content]] = getattr(kls, attr)
             attr = kls.__names_serialization__.get(attr, attr)
             variant_schema = core_schema.typed_dict_field(core_schema.str_schema(pattern=attr))
 
@@ -104,7 +105,7 @@ class InternallyTagged(TaggedSerialization):
 
     def __python_value_restore__(
             self,
-            kls: type["TypEnumPydantic[TypEnumContent]"],
+            kls: type["EnumetypedPydantic[Content]"],
             input_value: typing.Any,
             info: ValidationInfo,
     ) -> typing.Any:
@@ -122,11 +123,11 @@ class InternallyTagged(TaggedSerialization):
 
     def __pydantic_serialization__(
             self,
-            kls: type["TypEnumPydantic[TypEnumContent]"],
+            kls: type["EnumetypedPydantic[Content]"],
             model: typing.Any,
             serializer: SerializerFunctionWrapHandler,
     ) -> typing.Any:
-        from enumetyped.pydantic.core import TypEnumPydantic
+        from enumetyped.pydantic.core import EnumetypedPydantic
 
         attr = model.__variant_name__
         attr = kls.__names_serialization__.get(attr, attr)
@@ -134,7 +135,7 @@ class InternallyTagged(TaggedSerialization):
         result = {self.__variant_tag__: attr}
         if model.__content_type__ is NoValue:
             pass
-        elif isinstance(model.value, TypEnumPydantic):
+        elif isinstance(model.value, EnumetypedPydantic):
             result.update(**model.value.__pydantic_serialization__(model.value, serializer))
         else:
             result.update(**serializer(model.value))

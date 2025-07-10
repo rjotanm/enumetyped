@@ -5,11 +5,12 @@ import pydantic as pydantic_
 from pydantic_core import CoreSchema, core_schema
 from pydantic_core.core_schema import SerializerFunctionWrapHandler, ValidationInfo
 
-from enumetyped.core import TypEnumContent, NoValue
+from enumetyped.core import Content, NoValue
 from enumetyped.pydantic.serialization.tagged import TaggedSerialization
 
 if typing.TYPE_CHECKING:
-    from ..core import TypEnumPydantic  # type: ignore
+    from enumetyped.core import Content
+    from enumetyped.pydantic.core import EnumetypedPydantic
 
 __all__ = [
     "ExternallyTagged",
@@ -19,21 +20,21 @@ __all__ = [
 class ExternallyTagged(TaggedSerialization):
     def __get_pydantic_core_schema__(
             self,
-            kls: type["TypEnumPydantic[TypEnumContent]"],
+            kls: type["EnumetypedPydantic[Content]"],
             _source_type: typing.Any,
             handler: pydantic_.GetCoreSchemaHandler,
     ) -> CoreSchema:
-        from enumetyped.pydantic.core import TypEnumPydantic
+        from enumetyped.pydantic.core import EnumetypedPydantic
 
         json_schema_attrs = {}
         other_schemas = []
         for attr in kls.__variants__.values():
-            enum_variant: type[TypEnumPydantic[TypEnumContent]] = getattr(kls, attr)
+            enum_variant: type[EnumetypedPydantic[Content]] = getattr(kls, attr)
             attr = kls.__names_serialization__.get(attr, attr)
 
             is_enumetyped_variant = (
                     inspect.isclass(enum_variant.__content_type__) and
-                    issubclass(enum_variant.__content_type__, TypEnumPydantic)
+                    issubclass(enum_variant.__content_type__, EnumetypedPydantic)
             )
 
             item_schema: core_schema.CoreSchema
@@ -75,13 +76,13 @@ class ExternallyTagged(TaggedSerialization):
 
     def __python_value_restore__(
             self,
-            kls: type["TypEnumPydantic[TypEnumContent]"],
+            kls: type["EnumetypedPydantic[Content]"],
             input_value: typing.Any,
             info: ValidationInfo,
     ) -> typing.Any:
-        from enumetyped.pydantic.core import TypEnumPydantic
+        from enumetyped.pydantic.core import EnumetypedPydantic
 
-        if isinstance(input_value, TypEnumPydantic):
+        if isinstance(input_value, EnumetypedPydantic):
             return input_value
 
         if isinstance(input_value, str):
@@ -93,18 +94,18 @@ class ExternallyTagged(TaggedSerialization):
 
     def __pydantic_serialization__(
             self,
-            kls: type["TypEnumPydantic[TypEnumContent]"],
+            kls: type["EnumetypedPydantic[Content]"],
             model: typing.Any,
             serializer: SerializerFunctionWrapHandler,
     ) -> typing.Any:
-        from enumetyped.pydantic.core import TypEnumPydantic
+        from enumetyped.pydantic.core import EnumetypedPydantic
 
         attr = model.__variant_name__
         attr = model.__names_serialization__.get(attr, attr)
 
         if model.__content_type__ is NoValue:
             return attr
-        elif isinstance(model.value, TypEnumPydantic):
+        elif isinstance(model.value, EnumetypedPydantic):
             content = model.value.__pydantic_serialization__(model.value, serializer)
         else:
             content = serializer(model.value)

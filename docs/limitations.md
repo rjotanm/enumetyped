@@ -20,16 +20,17 @@ enum MyEnum {
 
 but python haven\`t this feature (mypy has experimental flag to support that), we must create TypedDict (or dataclass, or pydantic model, \`coz all of these types represent object)
 
-
 ```python
 from typing_extensions import TypedDict
-from enumetyped import TypEnum, TypEnumContent
+from enumetyped import Enumetyped, Content
+
 
 class ObjDict(TypedDict):
     a: int
     b: str
 
-class MyEnum(TypEnum[TypEnumContent]):
+
+class MyEnum(Enumetyped[Content]):
     Obj: type['MyEnum[ObjDict]']
 ```
 
@@ -43,13 +44,16 @@ enum MyEnum {
 ```
 
 In Python same, with special annotation
-```python
-from enumetyped import TypEnum, TypEnumContent, NoValue
 
-class MyEnum(TypEnum[TypEnumContent]):
+```python
+from enumetyped import Enumetyped, Content, NoValue
+
+
+class MyEnum(Enumetyped[Content]):
     Empty: type['MyEnum[NoValue]']
 
-class FinEnum(TypEnum[NoValue]):
+
+class FinEnum(Enumetyped[NoValue]):
     Empty: type['MyEnum']
 ```
 
@@ -72,12 +76,14 @@ enum MyEnum {
 
 ```python
 from typing_extensions import TypedDict
-from enumetyped import TypEnum, TypEnumContent
+from enumetyped import Enumetyped, Content
+
 
 class EmptyObj(TypedDict):
     pass
 
-class MyEnum(TypEnum[TypEnumContent]):
+
+class MyEnum(Enumetyped[Content]):
     Empty: type['MyEnum[EmptyObj]']
 ```
 
@@ -101,9 +107,10 @@ enum MyEnum {
 
 ```python
 from typing import Any
-from enumetyped import TypEnum, TypEnumContent
+from enumetyped import Enumetyped, Content
 
-class MyEnum(TypEnum[TypEnumContent]):
+
+class MyEnum(Enumetyped[Content]):
     Int: type['MyEnum[int]']
     SelfRef: type['MyEnum[MyEnum[Any]]']
 ```
@@ -133,12 +140,14 @@ enum MyEnum {
 
 ```python
 from typing_extensions import TypedDict
-from enumetyped import TypEnum, TypEnumContent
+from enumetyped import Enumetyped, Content
+
 
 class EnumContaining(TypedDict):
     c: 'MyEnum'
 
-class MyEnum(TypEnum[TypEnumContent]):
+
+class MyEnum(Enumetyped[Content]):
     Int: type['MyEnum[int]']
     Ref: type['MyEnum[EnumContaining]']
 ```
@@ -146,19 +155,22 @@ class MyEnum(TypEnum[TypEnumContent]):
 #### 4. Internally representation should use for objects only
 
 ```python
-from enumetyped import TypEnum, TypEnumContent
+from enumetyped import Enumetyped, Content
 
-class MyEnum(TypEnum[TypEnumContent], key="key"):
+
+class MyEnum(Enumetyped[Content], key="key"):
     Int: type['MyEnum[int]']  # bad, error on runtime, but pass type check
 ```
 
 ```python
 from typing_extensions import TypedDict
-from enumetyped import TypEnum, TypEnumContent
+from enumetyped import Enumetyped, Content
+
 
 class IntDict(TypedDict):
     val: int
 
-class MyEnum(TypEnum[TypEnumContent], key="key"):
+
+class MyEnum(Enumetyped[Content], key="key"):
     Int: type['MyEnum[IntDict]']  # good, ambiguous, use other representation when possible
 ```

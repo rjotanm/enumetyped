@@ -10,12 +10,15 @@ This package provide a way to create typed enumerations.
 # Quickstart
 
 #### Without pydantic
-```python
-from enumetyped import TypEnum, TypEnumContent
 
-class SimpleEnum(TypEnum[TypEnumContent]):
+```python
+from enumetyped import Enumetyped, Content
+
+
+class SimpleEnum(Enumetyped[Content]):
     A: type["SimpleEnum[NoValue]"]
     Int: type["SimpleEnum[int]"]
+
 
 # isinstance checking
 assert isinstance(SimpleEnum.A(...), SimpleEnum)
@@ -44,12 +47,12 @@ from dataclasses import dataclass
 
 from pydantic import BaseModel
 
-from enumetyped import TypEnum, TypEnumContent, NoValue
-from enumetyped.pydantic import TypEnumPydantic, FieldMetadata, Rename
+from enumetyped import Enumetyped, Content, NoValue
+from enumetyped.pydantic import EnumetypedPydantic, FieldMetadata, Rename
 from typing_extensions import Annotated, TypedDict
 
 
-class Enum(TypEnum[NoValue]):
+class Enum(Enumetyped[NoValue]):
     V1: type["Enum"]
     V2: type["Enum"]
 
@@ -67,19 +70,19 @@ class TestTypedDict(TypedDict):
     tm: TestModel
 
 
-class SimpleEnum(TypEnumPydantic[NoValue]):
+class SimpleEnum(EnumetypedPydantic[NoValue]):
     V1: type["SimpleEnum"]
     V2: type["SimpleEnum"]
 
 
-class OtherEnum(TypEnumPydantic[TypEnumContent]):
+class OtherEnum(EnumetypedPydantic[Content]):
     Int: type["OtherEnum[int]"]
     Int: type["OtherEnum[str]"]
 
 
 # class MyEnum(TypEnumPydantic[TypEnumContent], variant="key", content="value"): <- adjacently
 # class MyEnum(TypEnumPydantic[TypEnumContent], variant="key"): <- internally
-class MyEnum(TypEnumPydantic[TypEnumContent]):  # <- externally, default
+class MyEnum(EnumetypedPydantic[Content]):  # <- externally, default
     # MyEnum.Int(123)
     Int: type["MyEnum[int]"]
 

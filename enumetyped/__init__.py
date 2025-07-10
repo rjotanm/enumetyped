@@ -1,9 +1,9 @@
-from enumetyped.core import TypEnum, TypEnumContent, NoValue
+from enumetyped.core import Enumetyped, Content, NoValue
 
 __all__ = [
     "NoValue",
-    "TypEnum",
-    "TypEnumContent",
+    "Enumetyped",
+    "Content",
 ]
 
 __package_name__ = "enumetyped"

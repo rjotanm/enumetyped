@@ -3,9 +3,11 @@ import typing
 
 __all__ = [
     "NoValue",
-    "TypEnum",
-    "TypEnumContent",
-    "TypEnumMeta",
+    "Enumetyped",
+    "TypEnum",  # deprecated
+    "Content",
+    "TypEnumContent",  # deprecated
+    "EnumetypedMeta",
 ]
 
 import typing_extensions
@@ -13,19 +15,19 @@ import typing_extensions
 from annotated_types import BaseMetadata
 from typing_extensions import Annotated
 
-TypEnumContent = typing.TypeVar("TypEnumContent")
+Content = typing.TypeVar("Content")
 
 
 NoValue = types.EllipsisType
 
 
-class TypEnumMeta(type):
+class EnumetypedMeta(type):
     __full_variant_name__: str
     __variant_name__: str
 
     __content_type__: typing.Union[str, type[typing.Any]]
 
-    __variants__: dict[type['_TypEnum[typing.Any]'], str]
+    __variants__: dict[type['_Enumetyped[typing.Any]'], str]
 
     __is_variant__: bool = False
 
@@ -106,7 +108,7 @@ class TypEnumMeta(type):
         return getattr(self, "__full_variant_name__", self.__class__.__name__)
 
 
-class _TypEnum(typing.Generic[TypEnumContent], metaclass=TypEnumMeta):
+class _Enumetyped(typing.Generic[Content], metaclass=EnumetypedMeta):
     __match_args__ = ("value",)
 
     __full_variant_name__: typing.ClassVar[str]
@@ -114,19 +116,52 @@ class _TypEnum(typing.Generic[TypEnumContent], metaclass=TypEnumMeta):
 
     __content_type__: typing.ClassVar[typing.Union[str, type[typing.Any]]]
 
-    __variants__: typing.ClassVar[dict[type['_TypEnum[typing.Any]'], str]]
+    __variants__: typing.ClassVar[dict[type['_Enumetyped[typing.Any]'], str]]
 
     __is_variant__: typing.ClassVar[bool] = False
 
     __abstract__: typing_extensions.Never
 
-    value: typing.Optional[TypEnumContent]
+    value: typing.Optional[Content] = None
 
-    def __init__(self, value: TypEnumContent):
-        if self.__content_type__ is NoValue:
-            self.value = None
-        else:
-            self.value = value
+    def __new__(cls, *args, **kwargs):  # type: ignore
+        if not args and not kwargs:
+            if cls.__content_type__ is not NoValue:
+                raise ValueError("Content must be set")
+
+        elif args and not cls.__is_variant__:
+            kls = getattr(cls, args[0])
+            if kls.__content_type__ is NoValue:
+                return kls(None)
+
+        elif kwargs:
+            for key, value in kwargs.items():
+                kls = getattr(cls, key)
+                if kls.__content_type__ is NoValue:
+                    return kls(None)
+                else:
+                    return kls(value)
+
+        return object.__new__(cls)
+
+    @typing.overload
+    def __init__(self):  # type: ignore
+        pass
+
+    @typing.overload
+    def __init__(self, content: Content):
+        pass
+
+    @typing.overload
+    def __init__(self, **kwargs: dict[str, Content]):
+        pass
+
+    def __init__(self, *args, **_kw):  # type: ignore
+        if self.value is None:
+            if args:
+                self.value = args[0]
+            else:
+                self.value = None
 
     def __repr__(self) -> str:
         if self.__content_type__ is NoValue:
@@ -134,11 +169,15 @@ class _TypEnum(typing.Generic[TypEnumContent], metaclass=TypEnumMeta):
         return f"{self.__full_variant_name__}({self.value.__repr__()})"
 
     def __eq__(self, other: object) -> bool:
-        if not isinstance(other, _TypEnum):
+        if not isinstance(other, _Enumetyped):
             return False
 
         return self.__class__ == other.__class__ and self.value == other.value
 
 
-class TypEnum(_TypEnum[TypEnumContent]):
+class Enumetyped(_Enumetyped[Content]):
     __abstract__: typing_extensions.Never
+
+
+TypEnum = Enumetyped
+TypEnumContent = Content  # type: ignore
