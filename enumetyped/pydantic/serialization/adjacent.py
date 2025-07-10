@@ -6,7 +6,7 @@ from pydantic_core import CoreSchema, core_schema
 from pydantic_core.core_schema import SerializerFunctionWrapHandler, ValidationInfo
 
 from enumetyped.core import Content, NoValue
-from enumetyped.pydantic.serialization.tagged import TaggedSerialization
+from enumetyped.pydantic.serialization.tagging import Tagging
 
 if typing.TYPE_CHECKING:
     from enumetyped.core import Content
@@ -14,11 +14,11 @@ if typing.TYPE_CHECKING:
 
 
 __all__ = [
-    "AdjacentlyTagged",
+    "AdjacentTagging",
 ]
 
 
-class AdjacentlyTagged(TaggedSerialization):
+class AdjacentTagging(Tagging):
     __variant_tag__: str
     __content_tag__: str
 

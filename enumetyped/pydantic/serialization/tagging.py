@@ -10,11 +10,11 @@ if typing.TYPE_CHECKING:
     from enumetyped.pydantic.core import EnumetypedPydantic
 
 __all__ = [
-    "TaggedSerialization",
+    "Tagging",
 ]
 
 
-class TaggedSerialization(ABC):
+class Tagging(ABC):
     @abstractmethod
     def __get_pydantic_core_schema__(
             self,

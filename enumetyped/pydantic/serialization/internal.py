@@ -5,18 +5,18 @@ from pydantic_core import CoreSchema, core_schema, SchemaValidator
 from pydantic_core.core_schema import SerializerFunctionWrapHandler, ValidationInfo
 
 from enumetyped.core import NoValue, Content
-from enumetyped.pydantic.serialization.tagged import TaggedSerialization
+from enumetyped.pydantic.serialization.tagging import Tagging
 
 if typing.TYPE_CHECKING:
     from enumetyped.core import Content
     from enumetyped.pydantic.core import EnumetypedPydantic
 
 __all__ = [
-    "InternallyTagged",
+    "InternalTagging",
 ]
 
 
-class InternallyTagged(TaggedSerialization):
+class InternalTagging(Tagging):
     __variant_tag__: str
     __ext_tagged_schema_validator__: SchemaValidator
 

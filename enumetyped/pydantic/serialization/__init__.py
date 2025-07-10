@@ -1,9 +1,9 @@
-from .externally import ExternallyTagged
-from .adjacently import AdjacentlyTagged
-from .internally import InternallyTagged
+from .external import ExternalTagging
+from .adjacent import AdjacentTagging
+from .internal import InternalTagging
 
 __all__ = [
-    "ExternallyTagged",
-    "AdjacentlyTagged",
-    "InternallyTagged",
+    "ExternalTagging",
+    "AdjacentTagging",
+    "InternalTagging",
 ]

@@ -6,18 +6,18 @@ from pydantic_core import CoreSchema, core_schema
 from pydantic_core.core_schema import SerializerFunctionWrapHandler, ValidationInfo
 
 from enumetyped.core import Content, NoValue
-from enumetyped.pydantic.serialization.tagged import TaggedSerialization
+from enumetyped.pydantic.serialization.tagging import Tagging
 
 if typing.TYPE_CHECKING:
     from enumetyped.core import Content
     from enumetyped.pydantic.core import EnumetypedPydantic
 
 __all__ = [
-    "ExternallyTagged",
+    "ExternalTagging",
 ]
 
 
-class ExternallyTagged(TaggedSerialization):
+class ExternalTagging(Tagging):
     def __get_pydantic_core_schema__(
             self,
             kls: type["EnumetypedPydantic[Content]"],

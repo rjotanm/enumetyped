@@ -21,8 +21,8 @@ __all__ = [
     "eval_content_type",
 ]
 
-from enumetyped.pydantic.serialization import AdjacentlyTagged, InternallyTagged, ExternallyTagged
-from enumetyped.pydantic.serialization.tagged import TaggedSerialization
+from enumetyped.pydantic.serialization import AdjacentTagging, InternalTagging, ExternalTagging
+from enumetyped.pydantic.serialization.tagging import Tagging
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,7 +47,7 @@ def eval_content_type(cls: type['EnumetypedPydantic[Content]']) -> type:
 
 
 class EnumetypedPydanticMeta(EnumetypedMeta):
-    __serialization__: TaggedSerialization
+    __tagging__: Tagging
 
     def __new__(
             cls,
@@ -71,11 +71,11 @@ class EnumetypedPydanticMeta(EnumetypedMeta):
         enum_class.__names_deserialization__ = dict()
 
         if variant is not None and content is not None:
-            enum_class.__serialization__ = AdjacentlyTagged(variant, content)
+            enum_class.__serialization__ = AdjacentTagging(variant, content)
         elif variant is not None:
-            enum_class.__serialization__ = InternallyTagged(variant)
+            enum_class.__serialization__ = InternalTagging(variant)
         else:
-            enum_class.__serialization__ = ExternallyTagged()
+            enum_class.__serialization__ = ExternalTagging()
 
         annotation: typing.Union[type[typing_extensions.Annotated[typing.Any, BaseMetadata]], type]
         for attr, annotation in enum_class.__annotations__.items():
@@ -114,7 +114,7 @@ class EnumetypedPydantic(Enumetyped[Content], metaclass=EnumetypedPydanticMeta):
     __names_serialization__: typing.ClassVar[dict[str, str]]
     __names_deserialization__: typing.ClassVar[dict[str, str]]
 
-    __serialization__: typing.ClassVar[TaggedSerialization]
+    __tagging__: typing.ClassVar[Tagging]
 
     _type_adapter: typing.Optional[TypeAdapter[typing_extensions.Self]] = None
 
@@ -142,7 +142,7 @@ class EnumetypedPydantic(Enumetyped[Content], metaclass=EnumetypedPydanticMeta):
             source_type: typing.Any,
             handler: pydantic_.GetCoreSchemaHandler,
     ) -> core_schema.CoreSchema:
-        return cls.__serialization__.__get_pydantic_core_schema__(cls, source_type, handler)  # type: ignore
+        return cls.__tagging__.__get_pydantic_core_schema__(cls, source_type, handler)  # type: ignore
 
     @classmethod
     def __python_value_restore__(
@@ -150,7 +150,7 @@ class EnumetypedPydantic(Enumetyped[Content], metaclass=EnumetypedPydanticMeta):
             input_value: typing.Any,
             info: ValidationInfo,
     ) -> typing.Any:
-        return cls.__serialization__.__python_value_restore__(cls, input_value, info)  # type: ignore
+        return cls.__tagging__.__python_value_restore__(cls, input_value, info)  # type: ignore
 
     @classmethod
     def __pydantic_serialization__(
@@ -158,7 +158,7 @@ class EnumetypedPydantic(Enumetyped[Content], metaclass=EnumetypedPydanticMeta):
             model: typing.Any,
             serializer: SerializerFunctionWrapHandler,
     ) -> typing.Any:
-        return cls.__serialization__.__pydantic_serialization__(cls, model, serializer)  # type: ignore
+        return cls.__tagging__.__pydantic_serialization__(cls, model, serializer)  # type: ignore
 
     @classmethod
     def adapter(cls) -> TypeAdapter[typing_extensions.Self]:
