@@ -133,7 +133,17 @@ class EnumetypedPydanticMeta(EnumetypedMeta):
                         variant.__content_type__.model_rebuild(_types_namespace=module.__dict__)
                         variant.__implicit_root_model__ = True
                     try:
-                        enum_class.__annotations__[k] = type[enum_class[content_type]]
+                        annotation = enum_class.__annotations__[k]
+                        if isinstance(annotation, typing._AnnotatedAlias):  # noqa
+                            # Save annotations like
+                            #
+                            #   class A(EnumetypedPydantic[Content]):
+                            #       Var: typing.Annotated[type["A[str]"], Rename("Vapppp")]
+                            #
+                            _, *annotations = typing_extensions.get_args(annotation)
+                            annotation.__origin__ = type[enum_class[content_type]]
+                        else:
+                            enum_class.__annotations__[k] = type[enum_class[content_type]]
                     except TypeError:
                         # Fall on below case
                         #
