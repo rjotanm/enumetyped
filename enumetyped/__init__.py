@@ -1,11 +1,18 @@
-from enumetyped.core import Enumetyped, Content, NoValue
+from enumetyped.core import Enumetyped, Content, Empty
 
 __all__ = [
-    "NoValue",
+    "Empty",
     "Enumetyped",
+    "TypEnum", # deprecated
+    "TypEnumContent", # deprecated
     "Content",
 ]
 
 __package_name__ = "enumetyped"
 __version__ = "0.3.3"
 __description__ = "Type-containing enumeration"
+
+
+TypEnum = Enumetyped
+TypEnumContent = Content
+NoValue = Empty

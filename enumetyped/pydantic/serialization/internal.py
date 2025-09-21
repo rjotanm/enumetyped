@@ -4,7 +4,7 @@ import pydantic as pydantic_
 from pydantic_core import CoreSchema, core_schema, SchemaValidator
 from pydantic_core.core_schema import SerializerFunctionWrapHandler, ValidationInfo
 
-from enumetyped.core import NoValue, Content
+from enumetyped.core import Empty, Content
 from enumetyped.pydantic.serialization.tagging import Tagging
 
 if typing.TYPE_CHECKING:
@@ -29,6 +29,7 @@ class InternalTagging(Tagging):
             source_type: typing.Any,
             handler: pydantic_.GetCoreSchemaHandler,
     ) -> CoreSchema:
+        # TODO: repair
         from enumetyped.pydantic.core import EnumetypedPydantic
 
         json_schemas: dict[str, core_schema.CoreSchema] = {}
@@ -43,7 +44,7 @@ class InternalTagging(Tagging):
             schema = {
                 self.__variant_tag__: variant_schema,
             }
-            if enum_variant.__content_type__ is NoValue:
+            if enum_variant.__content_type__ is Empty:
                 real_schemas.append(core_schema.str_schema(pattern=attr))
             else:
                 item_schema = handler.generate_schema(enum_variant.__content_type__)
@@ -102,24 +103,23 @@ class InternalTagging(Tagging):
             ),
             ref=f"{kls.__name__}:{id(kls)}"
         )
-
-    def __python_value_restore__(
+    
+    def parse(
             self,
             kls: type["EnumetypedPydantic[Content]"],
             input_value: typing.Any,
-            info: ValidationInfo,
     ) -> typing.Any:
-        if isinstance(input_value, kls):
-            return input_value
+        if isinstance(input_value, str):
+            input_value = {input_value: None}
 
-        type_key = input_value.pop(self.__variant_tag__)
+        type_key: str = input_value.pop(self.__variant_tag__) # noqa
         attr = kls.__names_deserialization__.get(type_key, type_key)
 
         if input_value:
             value = self.__ext_tagged_schema_validator__.validate_python({type_key: input_value})
-            return getattr(kls, attr).__variant_constructor__(value[type_key], info)
+            return attr, value[type_key]
         else:
-            return getattr(kls, attr).__variant_constructor__(None, info)
+            return attr, None
 
     def __pydantic_serialization__(
             self,
@@ -133,7 +133,7 @@ class InternalTagging(Tagging):
         attr = kls.__names_serialization__.get(attr, attr)
 
         result = {self.__variant_tag__: attr}
-        if model.__content_type__ is NoValue:
+        if model.__content_type__ is Empty:
             pass
         elif isinstance(model.value, EnumetypedPydantic):
             result.update(**model.value.__pydantic_serialization__(model.value, serializer))

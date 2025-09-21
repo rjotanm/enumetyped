@@ -10,9 +10,11 @@ from .core import (
     FieldMetadata,
 )
 
+TypEnumPydantic = EnumetypedPydantic
 
 __all__ = [
     "FieldMetadata",
     "Rename",
     "EnumetypedPydantic",
+    "TypEnumPydantic",
 ]

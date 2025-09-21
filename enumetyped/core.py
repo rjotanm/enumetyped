@@ -2,11 +2,9 @@ import types
 import typing
 
 __all__ = [
-    "NoValue",
+    "Empty",
     "Enumetyped",
-    "TypEnum",  # deprecated
     "Content",
-    "TypEnumContent",  # deprecated
     "EnumetypedMeta",
 ]
 
@@ -18,7 +16,7 @@ from typing_extensions import Annotated
 Content = typing.TypeVar("Content")
 
 
-NoValue = types.EllipsisType
+Empty = types.EllipsisType
 
 
 class EnumetypedMeta(type):
@@ -67,7 +65,7 @@ class EnumetypedMeta(type):
 
             content_type: str | type[typing.Any]
             if len(split) == 1:
-                content_type = NoValue
+                content_type = Empty
             else:
                 left, right = split
                 if left != enum_class.__name__:
@@ -94,6 +92,8 @@ class EnumetypedMeta(type):
             class _EnumVariant(variant_base):  # type: ignore
                 __is_variant__ = True
 
+            # _EnumVariant.__name__ = enum_class.__name__
+            # _EnumVariant.__full_variant_name__ = f"{enum_class.__name__}.{attr}"
             _EnumVariant.__name__ = _EnumVariant.__full_variant_name__ = f"{enum_class.__name__}.{attr}"
             _EnumVariant.__variant_name__ = attr
             _EnumVariant.__content_type__ = content_type
@@ -105,6 +105,7 @@ class EnumetypedMeta(type):
         return enum_class
 
     def __repr__(self) -> str:
+        # return self.__name__
         return getattr(self, "__full_variant_name__", self.__class__.__name__)
 
 
@@ -126,21 +127,13 @@ class _Enumetyped(typing.Generic[Content], metaclass=EnumetypedMeta):
 
     def __new__(cls, *args, **kwargs):  # type: ignore
         if not args and not kwargs:
-            if cls.__content_type__ is not NoValue:
+            if cls.__content_type__ is not Empty:
                 raise ValueError("Content must be set")
 
         elif args and not cls.__is_variant__:
             kls = getattr(cls, args[0])
-            if kls.__content_type__ is NoValue:
-                return kls(None)
-
-        elif kwargs:
-            for key, value in kwargs.items():
-                kls = getattr(cls, key)
-                if kls.__content_type__ is NoValue:
-                    return kls(None)
-                else:
-                    return kls(value)
+            if kls.__content_type__ is Empty:
+                return kls()
 
         return object.__new__(cls)
 
@@ -152,19 +145,22 @@ class _Enumetyped(typing.Generic[Content], metaclass=EnumetypedMeta):
     def __init__(self, content: Content):
         pass
 
-    @typing.overload
-    def __init__(self, **kwargs: dict[str, Content]):
-        pass
-
     def __init__(self, *args, **_kw):  # type: ignore
+        if self.__content_type__ is Empty:
+            return
+
         if self.value is None:
-            if args:
-                self.value = args[0]
-            else:
-                self.value = None
+            if not args:
+                return
+
+            value = args[0]
+            if value is Ellipsis:
+                return
+
+            self.value = value
 
     def __repr__(self) -> str:
-        if self.__content_type__ is NoValue:
+        if self.__content_type__ is Empty:
             return f"{self.__full_variant_name__}()"
         return f"{self.__full_variant_name__}({self.value.__repr__()})"
 
@@ -177,7 +173,3 @@ class _Enumetyped(typing.Generic[Content], metaclass=EnumetypedMeta):
 
 class Enumetyped(_Enumetyped[Content]):
     __abstract__: typing_extensions.Never
-
-
-TypEnum = Enumetyped
-TypEnumContent = Content  # type: ignore

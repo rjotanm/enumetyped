@@ -5,7 +5,7 @@ import pydantic as pydantic_
 from pydantic_core import CoreSchema, core_schema
 from pydantic_core.core_schema import SerializerFunctionWrapHandler, ValidationInfo
 
-from enumetyped.core import Content, NoValue
+from enumetyped.core import Content, Empty
 from enumetyped.pydantic.serialization.tagging import Tagging
 
 if typing.TYPE_CHECKING:
@@ -34,6 +34,8 @@ class AdjacentTagging(Tagging):
     ) -> CoreSchema:
         from enumetyped.pydantic.core import EnumetypedPydantic
 
+        # TODO: repair
+
         json_schemas: list[core_schema.CoreSchema] = []
         for attr in kls.__variants__.values():
             enum_variant: type[EnumetypedPydantic[Content]] = getattr(kls, attr)
@@ -48,7 +50,7 @@ class AdjacentTagging(Tagging):
                 self.__variant_tag__: variant_schema,
             }
 
-            if is_enumetyped_variant or enum_variant.__content_type__ is NoValue:
+            if is_enumetyped_variant or enum_variant.__content_type__ is Empty:
                 if is_enumetyped_variant:
                     kls_: type = enum_variant.__content_type__  # type: ignore
                     schema_definition = core_schema.definition_reference_schema(f"{kls_.__name__}:{id(kls_)}")
@@ -81,21 +83,15 @@ class AdjacentTagging(Tagging):
             ref=f"{kls.__name__}:{id(kls)}"
         )
 
-    def __python_value_restore__(
+    def parse(
             self,
             kls: type["EnumetypedPydantic[Content]"],
             input_value: typing.Any,
-            info: ValidationInfo,
     ) -> typing.Any:
-        from enumetyped.pydantic.core import EnumetypedPydantic
-
-        if isinstance(input_value, EnumetypedPydantic):
-            return input_value
-
         type_key = input_value[self.__variant_tag__]
         value = input_value.get(self.__content_tag__, None)
         attr = kls.__names_deserialization__.get(type_key, type_key)
-        return getattr(kls, attr).__variant_constructor__(value, info)
+        return attr, value
 
     def __pydantic_serialization__(
             self,
@@ -109,7 +105,7 @@ class AdjacentTagging(Tagging):
         attr = kls.__names_serialization__.get(attr, attr)
 
         result = {self.__variant_tag__: attr}
-        if model.__content_type__ is NoValue:
+        if model.__content_type__ is Empty:
             pass
         elif isinstance(model.value, EnumetypedPydantic):
             result[self.__content_tag__] = model.value.__pydantic_serialization__(model.value, serializer)

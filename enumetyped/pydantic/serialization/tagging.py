@@ -13,8 +13,18 @@ __all__ = [
     "Tagging",
 ]
 
+DEFINED_SCHEMAS = set()
+
 
 class Tagging(ABC):
+    @abstractmethod
+    def parse(
+            self,
+            kls: type["EnumetypedPydantic[Content]"],
+            input_value: typing.Any,
+    ) -> typing.Any:
+        raise NotImplementedError
+
     @abstractmethod
     def __get_pydantic_core_schema__(
             self,
@@ -24,14 +34,18 @@ class Tagging(ABC):
     ) -> CoreSchema:
         raise NotImplementedError
 
-    @abstractmethod
     def __python_value_restore__(
             self,
             kls: type["EnumetypedPydantic[Content]"],
             input_value: typing.Any,
             info: ValidationInfo,
     ) -> typing.Any:
-        raise NotImplementedError
+        from enumetyped.pydantic.core import EnumetypedPydantic
+        if isinstance(input_value, EnumetypedPydantic):
+            return input_value
+
+        attr, value = self.parse(kls, input_value)
+        return getattr(kls, attr).__variant_constructor__(value, info)
 
     @abstractmethod
     def __pydantic_serialization__(

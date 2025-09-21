@@ -2,16 +2,18 @@ import importlib
 import inspect
 import typing
 from dataclasses import dataclass
+from pprint import pprint
+
 import pydantic as pydantic_
 import typing_extensions
 from annotated_types import GroupedMetadata, BaseMetadata
-from pydantic import TypeAdapter
+from pydantic import TypeAdapter, ConfigDict
 from pydantic.json_schema import DEFAULT_REF_TEMPLATE, GenerateJsonSchema, JsonSchemaMode
 from pydantic.main import IncEx
 from pydantic_core import core_schema
 from pydantic_core.core_schema import ValidationInfo, SerializerFunctionWrapHandler
 
-from enumetyped.core import EnumetypedMeta, Content, Enumetyped
+from enumetyped.core import EnumetypedMeta, Content, Enumetyped, Empty
 
 __all__ = [
     "Rename",
@@ -61,9 +63,6 @@ class EnumetypedPydanticMeta(EnumetypedMeta):
         if enum_class.__annotations__.get("__abstract__"):
             return enum_class
 
-        enum_class.__full_variant_name__ = cls_name
-        enum_class.__variant_name__ = cls_name
-
         if enum_class.__is_variant__:
             return enum_class
 
@@ -71,11 +70,11 @@ class EnumetypedPydanticMeta(EnumetypedMeta):
         enum_class.__names_deserialization__ = dict()
 
         if variant is not None and content is not None:
-            enum_class.__serialization__ = AdjacentTagging(variant, content)
+            enum_class.__tagging__ = AdjacentTagging(variant, content)
         elif variant is not None:
-            enum_class.__serialization__ = InternalTagging(variant)
+            enum_class.__tagging__ = InternalTagging(variant)
         else:
-            enum_class.__serialization__ = ExternalTagging()
+            enum_class.__tagging__ = ExternalTagging()
 
         annotation: typing.Union[type[typing_extensions.Annotated[typing.Any, BaseMetadata]], type]
         for attr, annotation in enum_class.__annotations__.items():
@@ -105,10 +104,144 @@ class EnumetypedPydanticMeta(EnumetypedMeta):
                         enum_class.__names_serialization__[attr] = __meta__.value
                         enum_class.__names_deserialization__[__meta__.value] = attr
 
+        if not enum_class.__is_variant__:
+            module = importlib.import_module(enum_class.__module__)
+            module.__dict__[enum_class.__name__] = enum_class
+            for k, v in enum_class.__annotations__.items():
+                variant = getattr(enum_class, k)
+                variant.__module__ = enum_class.__module__
+                # module.__dict__[variant.__name__] = variant
+                try:
+                    content_type = variant.content_type()
+                    enum_class.__annotations__[k] = type[enum_class[content_type]]
+                except NameError:
+                    # May fall when Content name defined after Enumetyped definition
+                    #
+                    # class A(...)
+                    #     Var: type['A[B]']
+                    #
+                    # class B:
+                    #    ...
+                    enum_class.__annotations__[k] = type[enum_class[variant.__content_type__]]
+                    continue
+
+            # print(enum_class.__annotations__)
+            # pprint(module.__dict__)
         return enum_class
 
 
 class EnumetypedPydantic(Enumetyped[Content], metaclass=EnumetypedPydanticMeta):
+    """ Class for created rust-like enums
+
+    Can be used for creating complex API data schemas with simple usage.
+    ``` python
+        import pydantic
+        import json
+        from enumetyped import Content, Empty
+        from enumetyped.pydantic import EnumetypedPydantic
+
+        class AdItem(pydantic.BaseModel):
+            ...
+
+
+        class RootContainer(pydantic.RootModel):
+            root: list["ExampleFeed"]
+
+
+        class ExampleFeed(EnumetypedPydantic[Content]):
+            # variant with simple type
+            Post: type["ExampleFeed[str]"]
+            # variant with other pydantic or enumetyped model
+            Ad: type["ExampleFeed[AdItem]"]
+
+            # variant without value must have Content=Empty
+            ClientGenericContainer: type["ExampleFeed[Empty]"]
+
+            # forward self reference allowed, but it`s no practical use
+            SelfRef: type["ExampleFeed[ExampleFeed]"]
+
+            # self reference within default iterables allowed with root models
+            SelfList: type["ExampleFeed[Container]"]
+
+
+        # use adapter for serialization\deserialization in complex types
+        feed_adapter = pydantic.TypeAdapter(list[ExampleFeed])
+
+        feed = [
+            ExampleFeed.Post("test"),
+            ExampleFeed.Ad(AdItem()),
+            ExampleFeed.ClientGenericContainer(),
+        ]
+        serialized = feed_adapter.dump_json(feed)  # [{"Post":"test"},{"Ad":{}},"ClientGenericContainer"]
+        deserialized = feed_adapter.validate_json(serialized)
+        assert feed == deserialized
+
+        # use in pydantic models as-is
+        class TopLevelModel(pydantic.BaseModel):
+            feed: ExampleFeed
+
+        data = TopLevelModel(feed=ExampleFeed.Post("test"))
+        serialized = data.model_dump_json()  # {"feed":{"Post":"test"}}
+        deserialized = TopLevelModel.model_validate_json(serialized)
+        assert data == deserialized
+
+        # use pydantic-like methods
+        ad = ExampleFeed.Ad(AdItem())
+        serialized = ad.model_dump_json()  # {"Ad":{}}
+        deserialized = ExampleFeed.model_validate_json(serialized)
+        assert ad == deserialized
+
+        # or use tagging-dependent constructor
+        container = ExampleFeed.ClientGenericContainer()
+        serialized = container.model_dump_json()  # "ClientGenericContainer" - External
+
+        raw_deserialized = json.loads(serialized)
+        deserialized = ExampleFeed(raw_deserialized)
+
+        assert container == deserialized
+
+        post = ExampleFeed.Post("test")
+        serialized = post.model_dump_json()  # {"Post":"test"}
+
+        raw_deserialized = json.loads(serialized)
+        deserialized = ExampleFeed(raw_deserialized)
+        deserialized_kwargs = ExampleFeed(**raw_deserialized)
+
+        assert post == deserialized
+        assert post == deserialized_kwargs
+
+        # self containing
+        self_containing = ExampleFeed.SelfRef(ExampleFeed.SelfRef(ExampleFeed.Post("test")))
+
+        serialized = self_containing.model_dump_json()  # {"SelfRef":{"SelfRef":{"Post":"test"}}}
+
+        deserialized = ExampleFeed.model_validate_json(serialized)
+        assert self_containing == deserialized
+
+        raw_deserialized = json.loads(serialized)
+        deserialized = ExampleFeed(raw_deserialized)
+        deserialized_kwargs = ExampleFeed(**raw_deserialized)
+
+        assert self_containing == deserialized
+        assert self_containing == deserialized_kwargs
+
+        # self containing with generic container
+        self_containing = ExampleFeed.SelfList(Container(root=[ExampleFeed.SelfRef(ExampleFeed.Post("test"))]))
+
+        serialized = self_containing.model_dump_json()  # {"SelfList":[{"SelfRef":{"Post":"test"}}]}
+
+        raw_deserialized = json.loads(serialized)
+        deserialized = ExampleFeed(raw_deserialized)
+        deserialized_kwargs = ExampleFeed(**raw_deserialized)
+        deserialized_forward = ExampleFeed.model_validate_json(serialized)
+
+        assert self_containing == deserialized
+        assert self_containing == deserialized_kwargs
+        assert self_containing == deserialized_forward
+    ```
+
+
+    """
     __abstract__: typing_extensions.Never
 
     __names_serialization__: typing.ClassVar[dict[str, str]]
@@ -117,6 +250,39 @@ class EnumetypedPydantic(Enumetyped[Content], metaclass=EnumetypedPydanticMeta):
     __tagging__: typing.ClassVar[Tagging]
 
     _type_adapter: typing.Optional[TypeAdapter[typing_extensions.Self]] = None
+
+    def __new__(cls, *args, **kwargs):
+        # TODO: construct root model implicitly for types like
+        #   class A(EnumetypedPydantic[Content]):
+        #       Var: type["A[list[A]]"]
+        #  `coz now this structure worked only over root
+        options = None
+        if args:
+            arg = args[0]
+            if not cls.__is_variant__:
+                options = arg
+        else:
+            options = kwargs
+
+        if options:
+            return cls.model_validate(options)
+
+        return super().__new__(cls, *args, **kwargs)
+
+    @typing.overload
+    def __init__(self):  # type: ignore
+        pass
+
+    @typing.overload
+    def __init__(self, content: Content):
+        pass
+
+    @typing.overload
+    def __init__(self, **kwargs: dict):
+        pass
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
     @classmethod
     def content_type(cls) -> type:
