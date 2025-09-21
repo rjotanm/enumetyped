@@ -1,15 +1,12 @@
 import inspect
 import typing
-from copy import deepcopy
-from pprint import pprint
-from typing import Optional
 
 import pydantic as pydantic_
 from pydantic_core import CoreSchema, core_schema
-from pydantic_core.core_schema import SerializerFunctionWrapHandler, DefinitionReferenceSchema
+from pydantic_core.core_schema import SerializerFunctionWrapHandler
 
 from enumetyped.core import Content, Empty
-from enumetyped.pydantic.serialization.tagging import Tagging, DEFINED_SCHEMAS
+from enumetyped.pydantic.serialization.tagging import Tagging
 
 if typing.TYPE_CHECKING:
     from enumetyped.core import Content
@@ -108,11 +105,13 @@ class ExternalTagging(Tagging):
         attr = model.__variant_name__
         attr = model.__names_serialization__.get(attr, attr)
 
+        value = model._value  # noqa
+
         if model.__content_type__ is Empty:
             return attr
-        elif isinstance(model.value, EnumetypedPydantic):
-            content = model.value.__pydantic_serialization__(model.value, serializer)
+        elif isinstance(value, EnumetypedPydantic):
+            content = model.value.__pydantic_serialization__(value, serializer)
         else:
-            content = serializer(model.value)
+            content = serializer(value)
 
         return {attr: content}

@@ -117,7 +117,6 @@ class EnumetypedPydanticMeta(EnumetypedMeta):
                     not_eval_ct = variant.__content_type__
                     content_type = variant.content_type()
                     if type(content_type) is types.GenericAlias:
-                        # Explanation.
                         # Force generic variants like `Var` below
                         # to RootModel like `VarRoot`
                         #
@@ -133,8 +132,15 @@ class EnumetypedPydanticMeta(EnumetypedMeta):
                         variant.__content_type__ = pydantic.RootModel[not_eval_ct]
                         variant.__content_type__.model_rebuild(_types_namespace=module.__dict__)
                         variant.__implicit_root_model__ = True
-
-                    enum_class.__annotations__[k] = type[enum_class[content_type]]
+                    try:
+                        enum_class.__annotations__[k] = type[enum_class[content_type]]
+                    except TypeError:
+                        # Fall on below case
+                        #
+                        # class SimpleEnum(EnumetypedPydantic[Empty]):
+                        #     V1: type["SimpleEnum"]
+                        #     V2: type["SimpleEnum"]
+                        pass
 
                 except NameError:
                     # May fall when Content name defined after Enumetyped definition
@@ -186,7 +192,7 @@ class EnumetypedPydantic(Enumetyped[Content], metaclass=EnumetypedPydanticMeta):
 
             # self reference within inplace generics
             # (RootModel used implicitly)
-            SelfList: type["ExampleFeed[list[ExampleFeed]]"]
+            SelfListForce: type["ExampleFeed[list[ExampleFeed]]"]
 
 
         # use adapter for serialization\deserialization in complex types
@@ -263,6 +269,20 @@ class EnumetypedPydantic(Enumetyped[Content], metaclass=EnumetypedPydanticMeta):
         assert self_containing == deserialized
         assert self_containing == deserialized_kwargs
         assert self_containing == deserialized_forward
+
+        # self containing with generic container (implicitly create RootModel)
+        self_containing = ExampleFeed.SelfListForce([ExampleFeed.SelfRef(ExampleFeed.Post("test"))])
+
+        serialized = self_containing.model_dump_json()  # {"SelfListForce":[{"SelfRef":{"Post":"test"}}]}
+
+        raw_deserialized = json.loads(serialized)
+        deserialized = ExampleFeed(raw_deserialized)
+        deserialized_kwargs = ExampleFeed(**raw_deserialized)
+        deserialized_forward = ExampleFeed.model_validate_json(serialized)
+
+        assert self_containing == deserialized
+        assert self_containing == deserialized_kwargs
+        assert self_containing == deserialized_forward
     ```
 
 
@@ -290,6 +310,12 @@ class EnumetypedPydantic(Enumetyped[Content], metaclass=EnumetypedPydanticMeta):
             return cls.model_validate(options)
         return super().__new__(cls, *args, **kwargs)
 
+    @property
+    def value(self) -> typing.Optional[Content]:
+        if self.__implicit_root_model__:
+            return self._value.root
+        return self._value
+
     @typing.overload
     def __init__(self):  # type: ignore
         pass
@@ -303,14 +329,14 @@ class EnumetypedPydantic(Enumetyped[Content], metaclass=EnumetypedPydanticMeta):
         pass
 
     def __init__(self, *args, **kwargs):
-        if self.value is not None:
+        if self._value is not None:
             # Prevent parse data on second call
             return
 
         if args and self.__implicit_root_model__:
             value = args[0]
             if not isinstance(value, self.__content_type__):
-                self.value = self.__content_type__(value)
+                self._value = self.__content_type__(value)
             else:
                 super().__init__(value)
         else:

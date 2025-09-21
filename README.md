@@ -12,16 +12,16 @@ This package provide a way to create typed enumerations.
 #### Without pydantic
 
 ```python
-from enumetyped import Enumetyped, Content
+from enumetyped import Enumetyped, Empty, Content
 
 
 class SimpleEnum(Enumetyped[Content]):
-    A: type["SimpleEnum[NoValue]"]
+    A: type["SimpleEnum[Empty]"]
     Int: type["SimpleEnum[int]"]
 
 
 # isinstance checking
-assert isinstance(SimpleEnum.A(...), SimpleEnum)
+assert isinstance(SimpleEnum.A(), SimpleEnum)
 assert isinstance(SimpleEnum.Int(123), SimpleEnum.Int)
 assert not isinstance(SimpleEnum.Int(123), SimpleEnum.A)
 
@@ -47,12 +47,12 @@ from dataclasses import dataclass
 
 from pydantic import BaseModel
 
-from enumetyped import Enumetyped, Content, NoValue
+from enumetyped import Enumetyped, Content, Empty
 from enumetyped.pydantic import EnumetypedPydantic, FieldMetadata, Rename
 from typing_extensions import Annotated, TypedDict
 
 
-class Enum(Enumetyped[NoValue]):
+class Enum(Enumetyped[Empty]):
     V1: type["Enum"]
     V2: type["Enum"]
 
@@ -70,7 +70,7 @@ class TestTypedDict(TypedDict):
     tm: TestModel
 
 
-class SimpleEnum(EnumetypedPydantic[NoValue]):
+class SimpleEnum(EnumetypedPydantic[Empty]):
     V1: type["SimpleEnum"]
     V2: type["SimpleEnum"]
 
@@ -80,8 +80,8 @@ class OtherEnum(EnumetypedPydantic[Content]):
     Int: type["OtherEnum[str]"]
 
 
-# class MyEnum(TypEnumPydantic[TypEnumContent], variant="key", content="value"): <- adjacently
-# class MyEnum(TypEnumPydantic[TypEnumContent], variant="key"): <- internally
+# class MyEnum(EnumetypedPydantic[Content], variant="key", content="value"):  # <- adjacently
+# class MyEnum(EnumetypedPydantic[Content], variant="key"):  # <- internally
 class MyEnum(EnumetypedPydantic[Content]):  # <- externally, default
     # MyEnum.Int(123)
     Int: type["MyEnum[int]"]
@@ -120,17 +120,26 @@ class MyEnum(EnumetypedPydantic[Content]):  # <- externally, default
     # or use enumetyped.pydantic.Rename
     # StrTuple: Annotated[type["MyEnum[tuple[str, str]]"], Rename("some_other_name")]
 
+    # MyEnum.DeepAndDeeper([{"a": [(1, MyEnum.Int(2))]}])
+    DeepAndDeeper: type["MyEnum[list[dict[str, list[tuple[int, MyEnum]]]]]"]
 
 class FinModel(BaseModel):
     enum: MyEnum
 
 
 def dump_and_load(e: MyEnum):
-    model = FinModel(enum=e)
-    json_ = model.model_dump_json()
+    # Can use in other model
+    #
+    # model = FinModel(enum=e)
+    # json_ = model.model_dump_json()
+    # print(json_)
+    # restored = FinModel.model_validate_json(json_)
+    # assert model == restored
+    
+    json_ = e.model_dump_json()
     print(json_)
-    restored = FinModel.model_validate_json(json_)
-    assert model == restored
+    restored = MyEnum.model_validate_json(json_)
+    assert e == restored
 
 
 # externally -> {"enum":{"Int":1}} 
@@ -161,6 +170,7 @@ dump_and_load(MyEnum.Self(MyEnum.Int(1)))
 # externally -> {"enum":{"DC":{"a":1}}} 
 # adjacently -> {"enum":{"key":"DC","value":{"a":1}}}
 # internally -> {"enum":{"key":"DC","a":1}}}
+# internally -> may fall with "was never filled on some pydantic versions"
 dump_and_load(MyEnum.DataClass(TestDataClass(a=1)))
 
 # externally -> {"enum":{"Model":{"b":"test_model"}}} 
@@ -171,6 +181,7 @@ dump_and_load(MyEnum.Model(TestModel(b="test_model")))
 # externally -> {"enum":{"TypedDict":{"tm":{"b":"test_model"}}}} 
 # adjacently -> {"enum":{"key":"TypedDict","value":{"tm":{"b":"test_model"}}}}
 # internally -> {"enum":{"key":"TypedDict","tm":{"b":"test_model"}}}
+# internally -> may fall with "was never filled on some pydantic versions"
 dump_and_load(MyEnum.TypedDict(TestTypedDict(tm=TestModel(b="test_model"))))
 
 # externally -> {"enum":{"Dict":{"a":"1","b":"2"}}} 
@@ -187,6 +198,11 @@ dump_and_load(MyEnum.NoValue(...))
 # adjacently -> {"enum":{"key":"Optional","value":null}}
 # internally -> not supported
 dump_and_load(MyEnum.Optional(None))
+
+# externally -> {"enum":{"DeepAndDeeper":[{"a":[[1,{"Int":2}]]}]}}
+# adjacently -> {"enum":{"key":"DeepAndDeeper","value":[{"a":[[1,{"key":"Int","value":2}]]}]}}
+# internally -> not supported
+dump_and_load(MyEnum.DeepAndDeeper([{"a": [(1, MyEnum.Int(2))]}]))
 ```
 
 #### Other

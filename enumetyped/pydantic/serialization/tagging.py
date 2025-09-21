@@ -13,8 +13,6 @@ __all__ = [
     "Tagging",
 ]
 
-DEFINED_SCHEMAS = set()
-
 
 class Tagging(ABC):
     @abstractmethod

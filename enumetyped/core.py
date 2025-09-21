@@ -123,7 +123,7 @@ class _Enumetyped(typing.Generic[Content], metaclass=EnumetypedMeta):
 
     __abstract__: typing_extensions.Never
 
-    value: typing.Optional[Content] = None
+    _value: typing.Optional[Content] = None
 
     def __new__(cls, *args, **kwargs):  # type: ignore
         if not args and not kwargs:
@@ -137,6 +137,10 @@ class _Enumetyped(typing.Generic[Content], metaclass=EnumetypedMeta):
 
         return object.__new__(cls)
 
+    @property
+    def value(self) -> typing.Optional[Content]:
+        return self._value
+
     @typing.overload
     def __init__(self):  # type: ignore
         pass
@@ -149,7 +153,7 @@ class _Enumetyped(typing.Generic[Content], metaclass=EnumetypedMeta):
         if self.__content_type__ is Empty:
             return
 
-        if self.value is None:
+        if self._value is None:
             if not args:
                 return
 
@@ -157,7 +161,7 @@ class _Enumetyped(typing.Generic[Content], metaclass=EnumetypedMeta):
             if value is Ellipsis:
                 return
 
-            self.value = value
+            self._value = value
 
     def __repr__(self) -> str:
         if self.__content_type__ is Empty:

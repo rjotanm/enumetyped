@@ -1,8 +1,9 @@
 import typing
+from pprint import pprint
 
 import pydantic as pydantic_
 from pydantic_core import CoreSchema, core_schema, SchemaValidator
-from pydantic_core.core_schema import SerializerFunctionWrapHandler, ValidationInfo
+from pydantic_core.core_schema import SerializerFunctionWrapHandler
 
 from enumetyped.core import Empty, Content
 from enumetyped.pydantic.serialization.tagging import Tagging
@@ -29,8 +30,9 @@ class InternalTagging(Tagging):
             source_type: typing.Any,
             handler: pydantic_.GetCoreSchemaHandler,
     ) -> CoreSchema:
-        # TODO: repair
         from enumetyped.pydantic.core import EnumetypedPydantic
+
+        schema_ref = f"{kls.__module__}.{kls.__name__}:{id(kls)}"
 
         json_schemas: dict[str, core_schema.CoreSchema] = {}
         real_schema_attrs = {}
@@ -74,7 +76,7 @@ class InternalTagging(Tagging):
                         schema.update(**fields)
                     case _:
                         raise TypeError(
-                            "Type of content must be a TypedDict, dataclass or BaseModel subclass"
+                            f"Type of content must be a TypedDict, dataclass or BaseModel subclass, cause by {enum_variant.__content_type__} in {kls}"
                         )
 
             json_schemas[attr] = core_schema.typed_dict_schema(schema)
@@ -89,20 +91,26 @@ class InternalTagging(Tagging):
             choices=json_schemas,
             discriminator=self.__variant_tag__,
         )
-        return core_schema.json_or_python_schema(
-            json_schema=core_schema.with_info_after_validator_function(
-                kls.__python_value_restore__,
-                json_schema,
-            ),
-            python_schema=core_schema.with_info_after_validator_function(
-                kls.__python_value_restore__,
-                core_schema.any_schema(),
-            ),
-            serialization=core_schema.wrap_serializer_function_ser_schema(
-                kls.__pydantic_serialization__
-            ),
-            ref=f"{kls.__name__}:{id(kls)}"
+        result = core_schema.definitions_schema(
+            schema=core_schema.definition_reference_schema(schema_ref),
+            definitions=[
+                core_schema.json_or_python_schema(
+                    json_schema=core_schema.with_info_after_validator_function(
+                        kls.__python_value_restore__,
+                        json_schema,
+                    ),
+                    python_schema=core_schema.with_info_after_validator_function(
+                        kls.__python_value_restore__,
+                        core_schema.union_schema([json_schema, core_schema.any_schema()])
+                    ),
+                    serialization=core_schema.wrap_serializer_function_ser_schema(
+                        kls.__pydantic_serialization__
+                    ),
+                    ref=schema_ref,
+                )
+            ]
         )
+        return result
     
     def parse(
             self,
@@ -132,12 +140,14 @@ class InternalTagging(Tagging):
         attr = model.__variant_name__
         attr = kls.__names_serialization__.get(attr, attr)
 
+        value = model._value  # noqa
+
         result = {self.__variant_tag__: attr}
         if model.__content_type__ is Empty:
             pass
-        elif isinstance(model.value, EnumetypedPydantic):
-            result.update(**model.value.__pydantic_serialization__(model.value, serializer))
+        elif isinstance(value, EnumetypedPydantic):
+            result.update(**value.__pydantic_serialization__(value, serializer))
         else:
-            result.update(**serializer(model.value))
+            result.update(**serializer(value))
 
         return result
