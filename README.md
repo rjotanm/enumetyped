@@ -192,7 +192,7 @@ dump_and_load(MyEnum.Dict({"a": "1", "b": "2"}))
 # externally -> {"enum":"NoValue"}
 # adjacently -> {"enum":{"key":"NoValue"}}
 # internally -> {"enum":{"key":"NoValue"}}
-dump_and_load(MyEnum.NoValue(...))
+dump_and_load(MyEnum.NoValue())
 
 # externally -> {"enum":{"Optional":null}} 
 # adjacently -> {"enum":{"key":"Optional","value":null}}

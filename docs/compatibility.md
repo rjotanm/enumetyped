@@ -110,7 +110,7 @@ fn main() {
     // externally -> {"enum":"NoValue"}
     // adjacently -> {"enum":{"key":"NoValue"}}
     // internally -> {"enum":{"key":"NoValue"}}
-    // python: MyEnum.NoValue(...)
+    // python: MyEnum.NoValue()
     dump(MyEnum::NoValue);
 
     // externally -> {"enum":{"Optional":null}}
