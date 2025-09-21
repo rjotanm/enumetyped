@@ -1,15 +1,18 @@
 import importlib
 import inspect
+import types
 import typing
 from dataclasses import dataclass
 from pprint import pprint
 
+import pydantic
 import pydantic as pydantic_
 import typing_extensions
 from annotated_types import GroupedMetadata, BaseMetadata
 from pydantic import TypeAdapter, ConfigDict
 from pydantic.json_schema import DEFAULT_REF_TEMPLATE, GenerateJsonSchema, JsonSchemaMode
 from pydantic.main import IncEx
+from pydantic.root_model import RootModelRootType
 from pydantic_core import core_schema
 from pydantic_core.core_schema import ValidationInfo, SerializerFunctionWrapHandler
 
@@ -110,10 +113,29 @@ class EnumetypedPydanticMeta(EnumetypedMeta):
             for k, v in enum_class.__annotations__.items():
                 variant = getattr(enum_class, k)
                 variant.__module__ = enum_class.__module__
-                # module.__dict__[variant.__name__] = variant
                 try:
+                    not_eval_ct = variant.__content_type__
                     content_type = variant.content_type()
+                    if type(content_type) is types.GenericAlias:
+                        # Explanation.
+                        # Force generic variants like `Var` below
+                        # to RootModel like `VarRoot`
+                        #
+                        #   class Container(pydantic.RootModel):
+                        #       root: list['A']
+                        #
+                        #
+                        #   class A(EnumetypedPydantic[Content]):
+                        #       Var: type["A[list[A]]"]
+                        #       VarRoot: type["A[]"]
+                        #
+
+                        variant.__content_type__ = pydantic.RootModel[not_eval_ct]
+                        variant.__content_type__.model_rebuild(_types_namespace=module.__dict__)
+                        variant.__implicit_root_model__ = True
+
                     enum_class.__annotations__[k] = type[enum_class[content_type]]
+
                 except NameError:
                     # May fall when Content name defined after Enumetyped definition
                     #
@@ -122,11 +144,10 @@ class EnumetypedPydanticMeta(EnumetypedMeta):
                     #
                     # class B:
                     #    ...
-                    enum_class.__annotations__[k] = type[enum_class[variant.__content_type__]]
-                    continue
+                    raise TypeError(
+                        f"Defer defined models currently is not supported, cause by {enum_class.__annotations__[k]} in {enum_class}!"
+                    )
 
-            # print(enum_class.__annotations__)
-            # pprint(module.__dict__)
         return enum_class
 
 
@@ -160,8 +181,12 @@ class EnumetypedPydantic(Enumetyped[Content], metaclass=EnumetypedPydanticMeta):
             # forward self reference allowed, but it`s no practical use
             SelfRef: type["ExampleFeed[ExampleFeed]"]
 
-            # self reference within default iterables allowed with root models
-            SelfList: type["ExampleFeed[Container]"]
+            # self reference within generics in root models
+            SelfList: type["ExampleFeed[RootContainer]"]
+
+            # self reference within inplace generics
+            # (RootModel used implicitly)
+            SelfList: type["ExampleFeed[list[ExampleFeed]]"]
 
 
         # use adapter for serialization\deserialization in complex types
@@ -226,7 +251,7 @@ class EnumetypedPydantic(Enumetyped[Content], metaclass=EnumetypedPydanticMeta):
         assert self_containing == deserialized_kwargs
 
         # self containing with generic container
-        self_containing = ExampleFeed.SelfList(Container(root=[ExampleFeed.SelfRef(ExampleFeed.Post("test"))]))
+        self_containing = ExampleFeed.SelfList(RootContainer(root=[ExampleFeed.SelfRef(ExampleFeed.Post("test"))]))
 
         serialized = self_containing.model_dump_json()  # {"SelfList":[{"SelfRef":{"Post":"test"}}]}
 
@@ -248,14 +273,11 @@ class EnumetypedPydantic(Enumetyped[Content], metaclass=EnumetypedPydanticMeta):
     __names_deserialization__: typing.ClassVar[dict[str, str]]
 
     __tagging__: typing.ClassVar[Tagging]
+    __implicit_root_model__: bool = False
 
     _type_adapter: typing.Optional[TypeAdapter[typing_extensions.Self]] = None
 
     def __new__(cls, *args, **kwargs):
-        # TODO: construct root model implicitly for types like
-        #   class A(EnumetypedPydantic[Content]):
-        #       Var: type["A[list[A]]"]
-        #  `coz now this structure worked only over root
         options = None
         if args:
             arg = args[0]
@@ -266,7 +288,6 @@ class EnumetypedPydantic(Enumetyped[Content], metaclass=EnumetypedPydanticMeta):
 
         if options:
             return cls.model_validate(options)
-
         return super().__new__(cls, *args, **kwargs)
 
     @typing.overload
@@ -282,7 +303,18 @@ class EnumetypedPydantic(Enumetyped[Content], metaclass=EnumetypedPydanticMeta):
         pass
 
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+        if self.value is not None:
+            # Prevent parse data on second call
+            return
+
+        if args and self.__implicit_root_model__:
+            value = args[0]
+            if not isinstance(value, self.__content_type__):
+                self.value = self.__content_type__(value)
+            else:
+                super().__init__(value)
+        else:
+            super().__init__(*args, **kwargs)
 
     @classmethod
     def content_type(cls) -> type:
@@ -330,6 +362,7 @@ class EnumetypedPydantic(Enumetyped[Content], metaclass=EnumetypedPydanticMeta):
     def adapter(cls) -> TypeAdapter[typing_extensions.Self]:
         if cls._type_adapter is None:
             cls._type_adapter = TypeAdapter(cls)
+
         return cls._type_adapter
 
     def model_dump(

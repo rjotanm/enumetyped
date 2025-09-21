@@ -41,7 +41,7 @@ class Tagging(ABC):
             info: ValidationInfo,
     ) -> typing.Any:
         from enumetyped.pydantic.core import EnumetypedPydantic
-        if isinstance(input_value, EnumetypedPydantic):
+        if isinstance(input_value, EnumetypedPydantic) or isinstance(input_value, pydantic_.BaseModel):
             return input_value
 
         attr, value = self.parse(kls, input_value)
