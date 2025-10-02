@@ -1,7 +1,7 @@
 [tool.poetry]
 package-mode = true
 name = "enumetyped"
-version = "0.4.1"
+version = "0.4.2"
 
 authors = [
     "Rinat Balbekov <me@rjotanm.dev>",
@@ -33,13 +33,15 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
-python = "^3.10"
+python = ">=3.10,<4.0"
 typing-extensions = ">=4.0.0"
+annotated-types = ">=0.6.0"
 
 pydantic = { version = ">=2.9.0", optional = true }
 
 [tool.poetry.group.dev.dependencies]
 mypy = "^1.13.0"
+pytest = "^8.4.1"
 
 [tool.poetry.extras]
 pydantic = ["pydantic"]

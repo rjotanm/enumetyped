@@ -1,8 +1,9 @@
 import inspect
 import typing
+from contextvars import ContextVar
 
 import pydantic as pydantic_
-from pydantic_core import CoreSchema, core_schema
+from pydantic_core import CoreSchema, core_schema, SchemaValidator
 from pydantic_core.core_schema import SerializerFunctionWrapHandler
 
 from enumetyped.core import Content, Empty
@@ -14,7 +15,11 @@ if typing.TYPE_CHECKING:
 
 __all__ = [
     "ExternalTagging",
+    "AlwaysSerializeToDict",
 ]
+
+
+AlwaysSerializeToDict: ContextVar[bool] = ContextVar("AlwaysSerializeToDict", default=False)
 
 
 class ExternalTagging(Tagging):
@@ -42,24 +47,22 @@ class ExternalTagging(Tagging):
 
             item_schema: core_schema.CoreSchema
 
-            if is_enumetyped_variant or enum_variant.__content_type__ is Empty:
-                if enum_variant.__content_type__ is Empty:
-                    schemas.append(core_schema.str_schema(pattern=attr))
-                    continue
+            if is_enumetyped_variant:
+                kls_: type = enum_variant.__content_type__  # type: ignore
+                child_schema_ref = f"{kls_.__module__}.{kls_.__name__}:{id(kls_)}"
+                if child_schema_ref == schema_ref:
+                    item_schema = core_schema.definition_reference_schema(schema_ref)
                 else:
-                    kls_: type = enum_variant.__content_type__  # type: ignore
-                    child_schema_ref = f"{kls_.__module__}.{kls_.__name__}:{id(kls_)}"
-                    if child_schema_ref == schema_ref:
-                        item_schema = core_schema.definition_reference_schema(schema_ref)
-                    else:
-                        item_schema = handler.generate_schema(enum_variant.__content_type__)
-
+                    item_schema = handler.generate_schema(enum_variant.__content_type__)
+            elif enum_variant.__content_type__ is Empty:
+                schemas.append(core_schema.str_schema(pattern=attr))
+                item_schema = core_schema.none_schema()
             else:
                 item_schema = handler.generate_schema(enum_variant.__content_type__)
 
             json_schema_attrs[attr] = core_schema.typed_dict_field(item_schema, required=False)
 
-        schemas.append(core_schema.typed_dict_schema(json_schema_attrs))
+        schemas.append(core_schema.typed_dict_schema(json_schema_attrs))  # type: ignore  # noqa
 
         result = core_schema.definitions_schema(
             schema=core_schema.definition_reference_schema(schema_ref),
@@ -67,11 +70,11 @@ class ExternalTagging(Tagging):
                 core_schema.json_or_python_schema(
                     json_schema=core_schema.with_info_after_validator_function(
                         kls.__python_value_restore__,
-                        core_schema.union_schema(schemas),
+                        core_schema.union_schema(schemas),  # type: ignore  # noqa
                     ),
                     python_schema=core_schema.with_info_after_validator_function(
                         kls.__python_value_restore__,
-                        core_schema.union_schema([core_schema.union_schema(schemas), core_schema.any_schema()]),
+                        core_schema.union_schema([core_schema.union_schema(schemas), core_schema.any_schema()]),  # type: ignore  # noqa
                     ),
                     serialization=core_schema.wrap_serializer_function_ser_schema(
                         kls.__pydantic_serialization__
@@ -80,6 +83,8 @@ class ExternalTagging(Tagging):
                 )
             ],
         )
+
+        self.core_schema = result
         return result
 
     def parse(
@@ -90,7 +95,7 @@ class ExternalTagging(Tagging):
         if isinstance(input_value, str):
             input_value = {input_value: None}
 
-        for attr, value in input_value.items():
+        for attr, value in input_value.items():  # noqa
             attr = kls.__names_deserialization__.get(attr, attr)
             return attr, value
 
@@ -107,7 +112,7 @@ class ExternalTagging(Tagging):
 
         value = model._value  # noqa
 
-        if model.__content_type__ is Empty:
+        if model.__content_type__ is Empty and not AlwaysSerializeToDict.get():
             return attr
         elif isinstance(value, EnumetypedPydantic):
             content = model.value.__pydantic_serialization__(value, serializer)

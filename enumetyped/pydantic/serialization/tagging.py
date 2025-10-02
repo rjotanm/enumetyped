@@ -2,12 +2,11 @@ import typing
 from abc import ABC, abstractmethod
 
 import pydantic as pydantic_
-from pydantic_core import CoreSchema
+from pydantic_core import CoreSchema, SchemaValidator
 from pydantic_core.core_schema import SerializerFunctionWrapHandler, ValidationInfo
 
 if typing.TYPE_CHECKING:
-    from enumetyped.core import Content
-    from enumetyped.pydantic.core import EnumetypedPydantic
+    from ..core import EnumetypedPydantic  # type: ignore
 
 __all__ = [
     "Tagging",
@@ -15,10 +14,12 @@ __all__ = [
 
 
 class Tagging(ABC):
+    core_schema: CoreSchema
+
     @abstractmethod
     def parse(
             self,
-            kls: type["EnumetypedPydantic[Content]"],
+            kls: type["EnumetypedPydantic[typing.Any]"],
             input_value: typing.Any,
     ) -> typing.Any:
         raise NotImplementedError
@@ -26,7 +27,7 @@ class Tagging(ABC):
     @abstractmethod
     def __get_pydantic_core_schema__(
             self,
-            kls: type["EnumetypedPydantic[Content]"],
+            kls: type["EnumetypedPydantic[typing.Any]"],
             _source_type: typing.Any,
             handler: pydantic_.GetCoreSchemaHandler,
     ) -> CoreSchema:
@@ -34,7 +35,7 @@ class Tagging(ABC):
 
     def __python_value_restore__(
             self,
-            kls: type["EnumetypedPydantic[Content]"],
+            kls: type["EnumetypedPydantic[typing.Any]"],
             input_value: typing.Any,
             info: ValidationInfo,
     ) -> typing.Any:
@@ -48,7 +49,7 @@ class Tagging(ABC):
     @abstractmethod
     def __pydantic_serialization__(
             self,
-            kls: type["EnumetypedPydantic[Content]"],
+            kls: type["EnumetypedPydantic[typing.Any]"],
             model: typing.Any,
             serializer: SerializerFunctionWrapHandler,
     ) -> typing.Any:

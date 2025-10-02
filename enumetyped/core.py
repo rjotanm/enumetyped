@@ -125,8 +125,8 @@ class _Enumetyped(typing.Generic[Content], metaclass=EnumetypedMeta):
 
     _value: typing.Optional[Content] = None
 
-    def __new__(cls, *args, **kwargs):  # type: ignore
-        if not args and not kwargs:
+    def __new__(cls, *args):  # type: ignore
+        if not args:
             if cls.__content_type__ is not Empty:
                 raise ValueError("Content must be set")
 
@@ -149,19 +149,12 @@ class _Enumetyped(typing.Generic[Content], metaclass=EnumetypedMeta):
     def __init__(self, content: Content):
         pass
 
-    def __init__(self, *args, **_kw):  # type: ignore
-        if self.__content_type__ is Empty:
-            return
-
-        if self._value is None:
-            if not args:
+    def __init__(self, content: Content = ...):  # type: ignore
+        if self._value is None and self.__content_type__ is not Empty:
+            if content is Ellipsis:
                 return
 
-            value = args[0]
-            if value is Ellipsis:
-                return
-
-            self._value = value
+            self._value = content
 
     def __repr__(self) -> str:
         if self.__content_type__ is Empty:

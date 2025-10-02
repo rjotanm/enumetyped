@@ -9,14 +9,13 @@ import pydantic
 import pydantic as pydantic_
 import typing_extensions
 from annotated_types import GroupedMetadata, BaseMetadata
-from pydantic import TypeAdapter, ConfigDict
+from pydantic import TypeAdapter
 from pydantic.json_schema import DEFAULT_REF_TEMPLATE, GenerateJsonSchema, JsonSchemaMode
-from pydantic.main import IncEx
-from pydantic.root_model import RootModelRootType
-from pydantic_core import core_schema
+from pydantic.main import IncEx  # noqa
+from pydantic_core import core_schema, SchemaValidator
 from pydantic_core.core_schema import ValidationInfo, SerializerFunctionWrapHandler
 
-from enumetyped.core import EnumetypedMeta, Content, Enumetyped, Empty
+from enumetyped.core import EnumetypedMeta, Content, Enumetyped
 
 __all__ = [
     "Rename",
@@ -91,7 +90,7 @@ class EnumetypedPydanticMeta(EnumetypedMeta):
                 except NameError:
                     ...
 
-            if isinstance(annotation, typing._AnnotatedAlias):  # type: ignore
+            if isinstance(annotation, typing._AnnotatedAlias):  # type: ignore  # noqa
                 metadata: list[typing.Union[BaseMetadata, GroupedMetadata]] = []
                 for v in annotation.__metadata__:
                     if isinstance(v, FieldMetadata):
@@ -111,12 +110,12 @@ class EnumetypedPydanticMeta(EnumetypedMeta):
             module = importlib.import_module(enum_class.__module__)
             module.__dict__[enum_class.__name__] = enum_class
             for k, v in enum_class.__annotations__.items():
-                variant = getattr(enum_class, k)
-                variant.__module__ = enum_class.__module__
+                variant_cls: type[EnumetypedPydantic[typing.Any]] = getattr(enum_class, k)
+                variant_cls.__module__ = enum_class.__module__
                 try:
-                    not_eval_ct = variant.__content_type__
-                    content_type = variant.content_type()
-                    if type(content_type) is types.GenericAlias:
+                    not_eval_ct = variant_cls.__content_type__
+                    content_type = variant_cls.content_type()
+                    if type(content_type) is types.GenericAlias:  # type: ignore  # noqa
                         # Force generic variants like `Var` below
                         # to RootModel like `VarRoot`
                         #
@@ -129,12 +128,12 @@ class EnumetypedPydanticMeta(EnumetypedMeta):
                         #       VarRoot: type["A[]"]
                         #
 
-                        variant.__content_type__ = pydantic.RootModel[not_eval_ct]
-                        variant.__content_type__.model_rebuild(_types_namespace=module.__dict__)
-                        variant.__implicit_root_model__ = True
+                        variant_cls.__content_type__ = pydantic.RootModel[not_eval_ct]  # type: ignore  # noqa
+                        variant_cls.__content_type__.model_rebuild(_types_namespace=module.__dict__)  # noqa
+                        variant_cls.__implicit_root_model__ = True
                     try:
                         annotation = enum_class.__annotations__[k]
-                        if isinstance(annotation, typing._AnnotatedAlias):  # noqa
+                        if isinstance(annotation, typing._AnnotatedAlias):  # type: ignore  # noqa
                             # Save annotations like
                             #
                             #   class A(EnumetypedPydantic[Content]):
@@ -161,7 +160,8 @@ class EnumetypedPydanticMeta(EnumetypedMeta):
                     # class B:
                     #    ...
                     raise TypeError(
-                        f"Defer defined models currently is not supported, cause by {enum_class.__annotations__[k]} in {enum_class}!"
+                        f"Defer defined models currently is not supported, cause by \
+                        {enum_class.__annotations__[k]} in {enum_class}!"
                     )
 
         return enum_class
@@ -205,7 +205,7 @@ class EnumetypedPydantic(Enumetyped[Content], metaclass=EnumetypedPydanticMeta):
             SelfListForce: type["ExampleFeed[list[ExampleFeed]]"]
 
 
-        # use adapter for serialization\deserialization in complex types
+        # use adapter for serialization\\deserialization in complex types
         feed_adapter = pydantic.TypeAdapter(list[ExampleFeed])
 
         feed = [
@@ -307,7 +307,7 @@ class EnumetypedPydantic(Enumetyped[Content], metaclass=EnumetypedPydanticMeta):
 
     _type_adapter: typing.Optional[TypeAdapter[typing_extensions.Self]] = None
 
-    def __new__(cls, *args, **kwargs):
+    def __new__(cls, *args, **kwargs):  # type: ignore  # noqa
         options = None
         if args:
             arg = args[0]
@@ -318,12 +318,12 @@ class EnumetypedPydantic(Enumetyped[Content], metaclass=EnumetypedPydanticMeta):
 
         if options:
             return cls.model_validate(options)
-        return super().__new__(cls, *args, **kwargs)
+        return super().__new__(cls, *args, **kwargs)  # type: ignore  # noqa
 
     @property
     def value(self) -> typing.Optional[Content]:
         if self.__implicit_root_model__:
-            return self._value.root
+            return self._value.root  # type: ignore  # noqa
         return self._value
 
     @typing.overload
@@ -335,22 +335,22 @@ class EnumetypedPydantic(Enumetyped[Content], metaclass=EnumetypedPydanticMeta):
         pass
 
     @typing.overload
-    def __init__(self, **kwargs: dict):
+    def __init__(self, **kwargs):  # type: ignore  # noqa
         pass
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs):  # type: ignore  # noqa
         if self._value is not None:
             # Prevent parse data on second call
             return
 
         if args and self.__implicit_root_model__:
             value = args[0]
-            if not isinstance(value, self.__content_type__):
-                self._value = self.__content_type__(value)
+            if not isinstance(value, self.__content_type__):  # type: ignore  # noqa
+                self._value = self.__content_type__(value)  # type: ignore  # noqa
             else:
                 super().__init__(value)
         else:
-            super().__init__(*args, **kwargs)
+            super().__init__(*args)
 
     @classmethod
     def content_type(cls) -> type:
@@ -361,10 +361,10 @@ class EnumetypedPydantic(Enumetyped[Content], metaclass=EnumetypedPydanticMeta):
 
     @classmethod
     def __variant_constructor__(
-            cls: type["EnumetypedPydantic[Content]"],
+            cls: type["EnumetypedPydantic[typing.Any]"],
             value: typing.Any,
             info: ValidationInfo,
-    ) -> "EnumetypedPydantic[Content]":
+    ) -> "EnumetypedPydantic[typing.Any]":
         if inspect.isclass(cls.content_type()) and issubclass(cls.content_type(), EnumetypedPydantic):
             value = cls.__python_value_restore__(value, info)
 
@@ -372,27 +372,39 @@ class EnumetypedPydantic(Enumetyped[Content], metaclass=EnumetypedPydanticMeta):
 
     @classmethod
     def __get_pydantic_core_schema__(
-            cls: type["EnumetypedPydantic[Content]"],
+            cls: type["EnumetypedPydantic[typing.Any]"],
             source_type: typing.Any,
             handler: pydantic_.GetCoreSchemaHandler,
     ) -> core_schema.CoreSchema:
-        return cls.__tagging__.__get_pydantic_core_schema__(cls, source_type, handler)  # type: ignore
+        return cls.__tagging__.__get_pydantic_core_schema__(
+            cls,  # type: ignore
+            source_type,
+            handler,
+        )
 
     @classmethod
     def __python_value_restore__(
-            cls: type["EnumetypedPydantic[Content]"],
+            cls: type["EnumetypedPydantic[typing.Any]"],
             input_value: typing.Any,
             info: ValidationInfo,
     ) -> typing.Any:
-        return cls.__tagging__.__python_value_restore__(cls, input_value, info)  # type: ignore
+        return cls.__tagging__.__python_value_restore__(
+            cls,  # type: ignore
+            input_value,
+            info,
+        )
 
     @classmethod
     def __pydantic_serialization__(
-            cls: type["EnumetypedPydantic[Content]"],
+            cls: type["EnumetypedPydantic[typing.Any]"],
             model: typing.Any,
             serializer: SerializerFunctionWrapHandler,
     ) -> typing.Any:
-        return cls.__tagging__.__pydantic_serialization__(cls, model, serializer)  # type: ignore
+        return cls.__tagging__.__pydantic_serialization__(
+            cls,  # type: ignore
+            model,
+            serializer,
+        )
 
     @classmethod
     def adapter(cls) -> TypeAdapter[typing_extensions.Self]:

@@ -1,9 +1,10 @@
+import inspect
 import typing
-from pprint import pprint
 
+import pydantic
 import pydantic as pydantic_
-from pydantic_core import CoreSchema, core_schema, SchemaValidator
-from pydantic_core.core_schema import SerializerFunctionWrapHandler
+from pydantic_core import CoreSchema, core_schema
+from pydantic_core.core_schema import SerializerFunctionWrapHandler, ValidationInfo
 
 from enumetyped.core import Empty, Content
 from enumetyped.pydantic.serialization.tagging import Tagging
@@ -19,7 +20,6 @@ __all__ = [
 
 class InternalTagging(Tagging):
     __variant_tag__: str
-    __ext_tagged_schema_validator__: SchemaValidator
 
     def __init__(self, variant: str):
         self.__variant_tag__ = variant
@@ -30,62 +30,44 @@ class InternalTagging(Tagging):
             source_type: typing.Any,
             handler: pydantic_.GetCoreSchemaHandler,
     ) -> CoreSchema:
+        # TODO: simplify
+
         from enumetyped.pydantic.core import EnumetypedPydantic
 
         schema_ref = f"{kls.__module__}.{kls.__name__}:{id(kls)}"
 
         json_schemas: dict[str, core_schema.CoreSchema] = {}
-        real_schema_attrs = {}
-        real_schemas: list[core_schema.CoreSchema] = []
-
         for attr in kls.__variants__.values():
             enum_variant: type[EnumetypedPydantic[Content]] = getattr(kls, attr)
             attr = kls.__names_serialization__.get(attr, attr)
-            variant_schema = core_schema.typed_dict_field(core_schema.str_schema(pattern=attr))
 
-            schema = {
-                self.__variant_tag__: variant_schema,
-            }
+            item_schema: typing.Optional[CoreSchema] = None
             if enum_variant.__content_type__ is Empty:
-                real_schemas.append(core_schema.str_schema(pattern=attr))
+                item_schema = core_schema.dict_schema()
             else:
-                item_schema = handler.generate_schema(enum_variant.__content_type__)
-                resolved = handler.resolve_ref_schema(item_schema)
+                is_enumetyped_variant = (
+                        inspect.isclass(enum_variant.__content_type__) and
+                        issubclass(enum_variant.__content_type__, EnumetypedPydantic)
+                )
+                if is_enumetyped_variant:
+                    kls_: type = enum_variant.__content_type__  # type: ignore
+                    child_schema_ref = f"{kls_.__module__}.{kls_.__name__}:{id(kls_)}"
+                    if child_schema_ref == schema_ref:
+                        item_schema = core_schema.definition_reference_schema(schema_ref)
 
-                real_schema_attrs[attr] = core_schema.typed_dict_field(resolved, required=False)
-                real_schemas.append(resolved)
+                if item_schema is None:
+                    item_schema = handler.generate_schema(enum_variant.__content_type__)
 
-                match resolved:
-                    case {"type": "dataclass", "schema": {"fields": fields}}:
-                        fields = {
-                            field["name"]: {
-                                "type": "typed-dict-field",
-                                "schema": field["schema"]
-                            } for field in fields
-                        }
-                        schema.update(**fields)
-                    case {"type": "model", "schema": {"fields": fields}}:
-                        fields = {
-                            k: {
-                                "type": "typed-dict-field",
-                                "schema": v["schema"]
-                            } for k, v in fields.items()
-                        }
-                        schema.update(**fields)
-                    case {"type": "typed-dict", "fields": fields}:
-                        schema.update(**fields)
-                    case _:
-                        raise TypeError(
-                            f"Type of content must be a TypedDict, dataclass or BaseModel subclass, cause by {enum_variant.__content_type__} in {kls}"
-                        )
-
-            json_schemas[attr] = core_schema.typed_dict_schema(schema)
-
-        # Store nested schema for deserializing
-        self.__ext_tagged_schema_validator__ = SchemaValidator(core_schema.union_schema([
-            core_schema.typed_dict_schema(real_schema_attrs),
-            *real_schemas,
-        ]))
+            json_schemas[attr] = core_schema.json_or_python_schema(
+                json_schema=core_schema.with_info_after_validator_function(
+                    getattr(kls, attr).__python_value_restore__,
+                    item_schema,
+                ),
+                python_schema=core_schema.with_info_after_validator_function(
+                    getattr(kls, attr).__python_value_restore__,
+                    core_schema.union_schema([item_schema, core_schema.any_schema()])
+                ),
+            )
 
         json_schema = core_schema.tagged_union_schema(
             choices=json_schemas,
@@ -95,23 +77,30 @@ class InternalTagging(Tagging):
             schema=core_schema.definition_reference_schema(schema_ref),
             definitions=[
                 core_schema.json_or_python_schema(
-                    json_schema=core_schema.with_info_after_validator_function(
-                        kls.__python_value_restore__,
-                        json_schema,
-                    ),
-                    python_schema=core_schema.with_info_after_validator_function(
-                        kls.__python_value_restore__,
-                        core_schema.union_schema([json_schema, core_schema.any_schema()])
-                    ),
+                    json_schema=json_schema,
+                    python_schema=core_schema.union_schema([json_schema, core_schema.any_schema()]),
                     serialization=core_schema.wrap_serializer_function_ser_schema(
-                        kls.__pydantic_serialization__
+                        kls.__pydantic_serialization__,
+                        schema=core_schema.any_schema(),
                     ),
                     ref=schema_ref,
                 )
             ]
         )
+
         return result
-    
+
+    def __python_value_restore__(
+            self,
+            kls: type["EnumetypedPydantic[typing.Any]"],
+            input_value: typing.Any,
+            info: ValidationInfo,
+    ) -> typing.Any:
+        if kls.__is_variant__:
+            return kls(input_value)
+
+        return super().__python_value_restore__(kls, input_value, info)
+
     def parse(
             self,
             kls: type["EnumetypedPydantic[Content]"],
@@ -123,11 +112,7 @@ class InternalTagging(Tagging):
         type_key: str = input_value.pop(self.__variant_tag__) # noqa
         attr = kls.__names_deserialization__.get(type_key, type_key)
 
-        if input_value:
-            value = self.__ext_tagged_schema_validator__.validate_python({type_key: input_value})
-            return attr, value[type_key]
-        else:
-            return attr, None
+        return attr, input_value
 
     def __pydantic_serialization__(
             self,

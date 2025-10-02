@@ -36,7 +36,7 @@ class AdjacentTagging(Tagging):
 
         schema_ref = f"{kls.__module__}.{kls.__name__}:{id(kls)}"
 
-        json_schemas: list[core_schema.CoreSchema] = []
+        json_schemas: dict[str, core_schema.CoreSchema] = {}
         for attr in kls.__variants__.values():
             enum_variant: type[EnumetypedPydantic[Content]] = getattr(kls, attr)
             attr = kls.__names_serialization__.get(attr, attr)
@@ -50,26 +50,37 @@ class AdjacentTagging(Tagging):
                 self.__variant_tag__: variant_schema,
             }
 
-            if is_enumetyped_variant or enum_variant.__content_type__ is Empty:
-                if is_enumetyped_variant:
-                    schema[self.__content_tag__] = core_schema.typed_dict_field(core_schema.any_schema())
+            if is_enumetyped_variant:
+                kls_: type = enum_variant.__content_type__  # type: ignore
+                child_schema_ref = f"{kls_.__module__}.{kls_.__name__}:{id(kls_)}"
+                if child_schema_ref == schema_ref:
+                    item_schema = core_schema.definition_reference_schema(schema_ref)
+                else:
+                    item_schema = handler.generate_schema(enum_variant.__content_type__)
+                schema[self.__content_tag__] = core_schema.typed_dict_field(item_schema)
+            elif enum_variant.__content_type__ is Empty:
+                schema[self.__content_tag__] = core_schema.typed_dict_field(core_schema.none_schema(), required=False)
             else:
                 value_schema = core_schema.typed_dict_field(handler.generate_schema(enum_variant.__content_type__))
                 schema[self.__content_tag__] = value_schema
 
-            json_schemas.append(core_schema.typed_dict_schema(schema))
+            json_schemas[attr] = core_schema.typed_dict_schema(schema)
 
+        tagged_schema = core_schema.tagged_union_schema(
+            choices=json_schemas,
+            discriminator=self.__variant_tag__,
+        )
         result = core_schema.definitions_schema(
             schema=core_schema.definition_reference_schema(schema_ref),
             definitions=[
                 core_schema.json_or_python_schema(
                     json_schema=core_schema.with_info_after_validator_function(
                         kls.__python_value_restore__,
-                        core_schema.union_schema(json_schemas),
+                        tagged_schema,
                     ),
                     python_schema=core_schema.with_info_after_validator_function(
                         kls.__python_value_restore__,
-                        core_schema.union_schema([*json_schemas, core_schema.any_schema()]),
+                        core_schema.union_schema([tagged_schema, core_schema.any_schema()]),
                     ),
                     serialization=core_schema.wrap_serializer_function_ser_schema(
                         kls.__pydantic_serialization__
