@@ -9,7 +9,7 @@ __all__ = [
 ]
 
 __package_name__ = "enumetyped"
-__version__ = "0.4.2"
+__version__ = "0.5.0"
 __description__ = "Type-containing enumeration"
 
 
