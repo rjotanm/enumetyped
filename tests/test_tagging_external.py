@@ -2,7 +2,6 @@ import json
 from dataclasses import dataclass
 from typing import Any, Optional
 
-import pydantic
 from pydantic import BaseModel
 from typing_extensions import Annotated, TypedDict
 

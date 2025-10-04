@@ -3,7 +3,6 @@ import inspect
 import types
 import typing
 from dataclasses import dataclass
-from pprint import pprint
 
 import pydantic
 import pydantic as pydantic_
@@ -12,7 +11,7 @@ from annotated_types import GroupedMetadata, BaseMetadata
 from pydantic import TypeAdapter
 from pydantic.json_schema import DEFAULT_REF_TEMPLATE, GenerateJsonSchema, JsonSchemaMode
 from pydantic.main import IncEx  # noqa
-from pydantic_core import core_schema, SchemaValidator
+from pydantic_core import core_schema
 from pydantic_core.core_schema import ValidationInfo, SerializerFunctionWrapHandler
 
 from enumetyped.core import EnumetypedMeta, Content, Enumetyped
@@ -50,6 +49,14 @@ def eval_content_type(cls: type['EnumetypedPydantic[Content]']) -> type:
     return eval(cls.__content_type__, module.__dict__)  # type: ignore
 
 
+def set_root_model(cls: type['EnumetypedPydantic[Content]'], not_eval_ct: str, module: types.ModuleType) -> None:
+    Root = pydantic.RootModel[not_eval_ct]  # type: ignore  # noqa
+    Root.__module__ = module.__name__
+
+    cls.__content_type__ = Root
+    cls.__implicit_root_model__ = True
+
+
 class EnumetypedPydanticMeta(EnumetypedMeta):
     __tagging__: Tagging
 
@@ -68,6 +75,10 @@ class EnumetypedPydanticMeta(EnumetypedMeta):
         if enum_class.__is_variant__:
             return enum_class
 
+        # Set class to module for evaluate types
+        module = importlib.import_module(enum_class.__module__)
+        module.__dict__[enum_class.__name__] = enum_class
+
         enum_class.__names_serialization__ = dict()
         enum_class.__names_deserialization__ = dict()
 
@@ -84,11 +95,53 @@ class EnumetypedPydanticMeta(EnumetypedMeta):
                 continue
 
             enum_variant = getattr(enum_class, attr)
-            if isinstance(enum_variant.__content_type__, str):
+            enum_variant.__module__ = enum_class.__module__
+
+            try:
+                not_eval_ct = enum_variant.__content_type__
+                content_type = enum_variant.content_type()
+                if type(content_type) is types.GenericAlias:  # noqa
+                    # Force generic variants like `Var` below
+                    # to RootModel like `VarRoot`
+                    #
+                    #   class Container(pydantic.RootModel):
+                    #       root: list['A']
+                    #
+                    #   class A(EnumetypedPydantic[Content]):
+                    #       Var: type["A[list[A]]"]
+                    #       VarRoot: type["A[]"]
+                    #
+                    set_root_model(enum_variant, not_eval_ct, module)
+
                 try:
-                    enum_variant.__content_type__ = eval_content_type(enum_variant)
-                except NameError:
-                    ...
+                    annotation = enum_class.__annotations__[attr]
+                    if isinstance(annotation, typing._AnnotatedAlias):  # type: ignore  # noqa
+                        # Save annotations like
+                        #
+                        #   class A(EnumetypedPydantic[Content]):
+                        #       Var: typing.Annotated[type["A[str]"], Rename("Vapppp")]
+                        #
+                        _, *annotations = typing_extensions.get_args(annotation)
+                        annotation.__origin__ = type[enum_class[content_type]]
+                    else:
+                        enum_class.__annotations__[attr] = type[enum_class[content_type]]
+
+                except TypeError:
+                    # Fall on below case
+                    #
+                    # class SimpleEnum(EnumetypedPydantic[Empty]):
+                    #     V1: type["SimpleEnum"]
+                    #     V2: type["SimpleEnum"]
+                    pass
+
+            except NameError:
+                # class A(...)
+                #     Var: type['A[B]']
+                #
+                # class B:
+                #    ...
+                not_eval_ct = enum_variant.__content_type__
+                set_root_model(enum_variant, not_eval_ct, module)
 
             if isinstance(annotation, typing._AnnotatedAlias):  # type: ignore  # noqa
                 metadata: list[typing.Union[BaseMetadata, GroupedMetadata]] = []
@@ -105,64 +158,6 @@ class EnumetypedPydanticMeta(EnumetypedMeta):
 
                         enum_class.__names_serialization__[attr] = __meta__.value
                         enum_class.__names_deserialization__[__meta__.value] = attr
-
-        if not enum_class.__is_variant__:
-            module = importlib.import_module(enum_class.__module__)
-            module.__dict__[enum_class.__name__] = enum_class
-            for k, v in enum_class.__annotations__.items():
-                variant_cls: type[EnumetypedPydantic[typing.Any]] = getattr(enum_class, k)
-                variant_cls.__module__ = enum_class.__module__
-                try:
-                    not_eval_ct = variant_cls.__content_type__
-                    content_type = variant_cls.content_type()
-                    if type(content_type) is types.GenericAlias:  # type: ignore  # noqa
-                        # Force generic variants like `Var` below
-                        # to RootModel like `VarRoot`
-                        #
-                        #   class Container(pydantic.RootModel):
-                        #       root: list['A']
-                        #
-                        #
-                        #   class A(EnumetypedPydantic[Content]):
-                        #       Var: type["A[list[A]]"]
-                        #       VarRoot: type["A[]"]
-                        #
-
-                        variant_cls.__content_type__ = pydantic.RootModel[not_eval_ct]  # type: ignore  # noqa
-                        variant_cls.__content_type__.model_rebuild(_types_namespace=module.__dict__)  # noqa
-                        variant_cls.__implicit_root_model__ = True
-                    try:
-                        annotation = enum_class.__annotations__[k]
-                        if isinstance(annotation, typing._AnnotatedAlias):  # type: ignore  # noqa
-                            # Save annotations like
-                            #
-                            #   class A(EnumetypedPydantic[Content]):
-                            #       Var: typing.Annotated[type["A[str]"], Rename("Vapppp")]
-                            #
-                            _, *annotations = typing_extensions.get_args(annotation)
-                            annotation.__origin__ = type[enum_class[content_type]]
-                        else:
-                            enum_class.__annotations__[k] = type[enum_class[content_type]]
-                    except TypeError:
-                        # Fall on below case
-                        #
-                        # class SimpleEnum(EnumetypedPydantic[Empty]):
-                        #     V1: type["SimpleEnum"]
-                        #     V2: type["SimpleEnum"]
-                        pass
-
-                except NameError:
-                    # May fall when Content name defined after Enumetyped definition
-                    #
-                    # class A(...)
-                    #     Var: type['A[B]']
-                    #
-                    # class B:
-                    #    ...
-                    raise TypeError(
-                        f"Defer defined models currently is not supported, cause by \
-                        {enum_class.__annotations__[k]} in {enum_class}!"
-                    )
 
         return enum_class
 
@@ -409,7 +404,7 @@ class EnumetypedPydantic(Enumetyped[Content], metaclass=EnumetypedPydanticMeta):
     @classmethod
     def adapter(cls) -> TypeAdapter[typing_extensions.Self]:
         if cls._type_adapter is None:
-            cls._type_adapter = TypeAdapter(cls)
+            cls._type_adapter = TypeAdapter(cls, module=cls.__module__)
 
         return cls._type_adapter
 

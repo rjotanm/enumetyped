@@ -2,14 +2,12 @@ import json
 from dataclasses import dataclass
 from typing import Any, Optional
 
-import pydantic
 from pydantic import BaseModel
 from typing_extensions import Annotated, TypedDict
 
 from enumetyped import Content
 from enumetyped import Empty
 from enumetyped.pydantic import FieldMetadata, EnumetypedPydantic, Rename
-from enumetyped.pydantic.serialization.external import AlwaysSerializeToDict
 
 
 @dataclass
